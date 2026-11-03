@@ -1,0 +1,67 @@
+name: macOS Apple Silicon trial
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/macos-trial.yml
+
+permissions:
+  contents: read
+
+concurrency:
+  group: macos-trial-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build Apple Silicon app and DMG
+    runs-on: macos-15
+    timeout-minutes: 45
+    env:
+      APPLE_SIGNING_IDENTITY: "-"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri -> target
+      - name: Install frontend dependencies
+        run: npm ci --no-audit --no-fund
+      - name: Build macOS trial
+        run: npm run tauri build -- --target aarch64-apple-darwin --bundles app,dmg
+      - name: Verify and package application
+        shell: bash
+        run: |
+          set -euo pipefail
+          app_path="src-tauri/target/aarch64-apple-darwin/release/bundle/macos/dida-clone.app"
+          codesign --verify --deep --strict --verbose=2 "$app_path"
+          file "$app_path/Contents/MacOS/dida-clone"
+          mkdir -p trial-downloads
+          ditto -c -k --sequesterRsrc --keepParent "$app_path" trial-downloads/dida-clone-apple-silicon.app.zip
+          cp src-tauri/target/aarch64-apple-darwin/release/bundle/dmg/*.dmg trial-downloads/
+          shasum -a 256 trial-downloads/*.dmg trial-downloads/*.zip > trial-downloads/SHA256SUMS.txt
+          cat > trial-downloads/INSTALL.txt <<'EOF'
+          Apple Silicon (M-series) macOS trial.
+          Open the DMG and drag dida-clone into Applications.
+          This personal trial uses ad-hoc signing and is not notarized by Apple.
+          If macOS blocks it, first try opening the app, then use:
+          System Settings > Privacy & Security > Open Anyway.
+          The ZIP contains the same application as an alternative to the DMG.
+          Data is stored locally by the app; browser trial data is not synced.
+          EOF
+      - name: Upload macOS downloads
+        uses: actions/upload-artifact@v4
+        with:
+          name: dida-clone-macOS-Apple-Silicon
+          path: trial-downloads/
+          if-no-files-found: error
+          retention-days: 14
+
