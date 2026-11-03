@@ -3,6 +3,10 @@ mod web;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    if std::env::args().nth(1).as_deref() == Some("version") {
+        println!("Dida 0.2.0 / SQLite {}", rusqlite::version());
+        return Ok(());
+    }
     let data = std::env::var("DIDA_DATA_DIR").unwrap_or_else(|_| "./data".into());
     std::fs::create_dir_all(&data)?;
     let database = format!("{data}/dida.sqlite3");
@@ -24,9 +28,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             .ok_or("backup destination required")?;
         let c = rusqlite::Connection::open(&database)?;
         c.backup(
-            rusqlite::DatabaseName::Main,
+            rusqlite::MAIN_DB,
             std::path::Path::new(&dest),
-            None,
+            None::<fn(rusqlite::backup::Progress)>,
         )?;
         return Ok(());
     }
@@ -46,9 +50,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         source_conn.prepare("SELECT data FROM records LIMIT 0")?;
         source_conn.prepare("SELECT seq FROM changes LIMIT 0")?;
         source_conn.backup(
-            rusqlite::DatabaseName::Main,
+            rusqlite::MAIN_DB,
             std::path::Path::new(&database),
-            None,
+            None::<fn(rusqlite::backup::Progress)>,
         )?;
         let mut restored = rusqlite::Connection::open(&database)?;
         let tx = restored.transaction()?;

@@ -17,7 +17,8 @@ RustSec 公告库来自官方 https://github.com/RustSec/advisory-db 的当前�
 - **高影响数据完整性问题**：原生数据库初始化用 INSERT OR REPLACE 重建系统清单，在外键 ON DELETE CASCADE 下会删除已有任务；已用原始代码行为复现。改为 INSERT OR IGNORE，并直接引用真实数据库初始化模块测试两次启动后任务仍存在。
 - **环境识别错误**：原代码手动判断的 Tauri 全局标识不可靠。现在使用官方 isTauri；Mac 读写进入原生 SQLite，网页使用 IndexedDB。数据与待上传队列在同一存储提交中保存。
 - **权限与脚本执行面**：原桌面 CSP 为 null，且授予未使用的 opener 权限。现在限制脚本/资源来源，移除 opener 插件与权限；原生 HTTP 只访问固定 HTTPS API 主机，禁用重定向，不向 JS 返回会话令牌。新增单实例保护，减少并发进程写入风险。
-- **隐私日志**：删除任务详情和清单名称的调试输出；公网服务不记录密码、令牌或任务正文。
+- **SQLite 安全基线**：rusqlite 更新至 0.41.1，内置 SQLite 从 3.46.0 更新为 3.54.1；重新验证数据库持久化、同步与备份恢复。API 不接受任意 SQL 或外部数据库文件。
+- **隐私日志**：删除任务详情和清单名称的调试输出，并在生产构建移除 console.log/debug；公网服务不记录密码、令牌或任务正文。
 - **HTTP 兼容性**：清单 ID 的 randomUUID 调用在非安全 HTTP 环境中报错；增加兼容处理。
 - **既有 SQL**：抽查全部仓储查询，业务参数使用 rusqlite 绑定参数；未发现将待办文本拼接为 SQL 的路径。
 - **既有 UI**：未发现 eval、动态 Function 或 dangerouslySetInnerHTML 的任务内容执行路径。待办文本由 React 文本节点呈现。
