@@ -3,9 +3,14 @@ name: macOS Apple Silicon trial
 on:
   workflow_dispatch:
   push:
-    branches: [main]
+    branches: [main, feature/web-macos-sync]
     paths:
       - .github/workflows/macos-trial.yml
+      - src/**
+      - src-tauri/**
+      - crates/**
+      - server/**
+      - package*.json
 
 permissions:
   contents: read
@@ -16,53 +21,103 @@ concurrency:
 
 jobs:
   build:
-    name: Build Apple Silicon app and DMG
-    if: github.event_name == 'workflow_dispatch'
+    name: Build offline Mac client
     runs-on: macos-latest
     timeout-minutes: 45
     env:
       APPLE_SIGNING_IDENTITY: "-"
+      CARGO_BUILD_JOBS: "2"
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: "24"
           cache: npm
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
         with:
           targets: aarch64-apple-darwin
-      - uses: Swatinem/rust-cache@v2
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
         with:
-          workspaces: src-tauri -> target
-      - name: Install frontend dependencies
-        run: npm ci --no-audit --no-fund
-      - name: Build macOS trial
+          workspaces: |
+            src-tauri -> target
+            crates/local-store -> target
+            server -> target
+      - name: Install dependencies and audit JavaScript
+        run: |
+          npm ci --no-audit --no-fund
+          npm audit --audit-level=high
+          npm run test:sync
+      - name: Test offline persistence and synchronization
+        run: |
+          cargo test --locked --manifest-path crates/local-store/Cargo.toml
+          cargo test --locked --manifest-path server/Cargo.toml
+      - name: Audit Rust dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --location --retry 3 https://github.com/rustsec/rustsec/releases/download/cargo-audit/v0.22.2/cargo-audit-aarch64-apple-darwin-v0.22.2.tgz -o /tmp/cargo-audit.tgz
+          tar -xzf /tmp/cargo-audit.tgz -C /tmp
+          audit_bin=/tmp/cargo-audit-aarch64-apple-darwin-v0.22.2/cargo-audit
+          "$audit_bin" audit --file src-tauri/Cargo.lock --no-yanked
+          "$audit_bin" audit --file server/Cargo.lock --no-yanked
+      - name: Build macOS application and DMG
         run: npm run tauri build -- --target aarch64-apple-darwin --bundles app,dmg
-      - name: Verify and package application
+      - name: Verify dependency warnings are outside the Mac target
+        shell: bash
+        run: |
+          set -euo pipefail
+          cargo tree --locked --manifest-path src-tauri/Cargo.toml --target aarch64-apple-darwin --prefix none > /tmp/dida-mac-dependencies.txt
+          if grep -E '^(glib|proc-macro-error|zbus_names|zvariant|zvariant_derive) v' /tmp/dida-mac-dependencies.txt; then
+            echo "An audited platform-warning package entered the Mac build"; exit 1
+          fi
+      - name: Verify signature and offline startup
         shell: bash
         run: |
           set -euo pipefail
           app_path="src-tauri/target/aarch64-apple-darwin/release/bundle/macos/dida-clone.app"
           codesign --verify --deep --strict --verbose=2 "$app_path"
           file "$app_path/Contents/MacOS/dida-clone"
+          "$app_path/Contents/MacOS/dida-clone" >/tmp/dida-startup.log 2>&1 &
+          dida_pid=$!
+          trap 'kill "$dida_pid" 2>/dev/null || true' EXIT
+          sleep 8
+          if ! kill -0 "$dida_pid" 2>/dev/null; then cat /tmp/dida-startup.log; exit 1; fi
+          database_path="$HOME/Library/Application Support/com.akm.dida-clone/dida.db"
+          test -f "$database_path"
+          test "$(sqlite3 "$database_path" 'PRAGMA integrity_check;')" = "ok"
+      - name: Package downloads
+        shell: bash
+        run: |
+          set -euo pipefail
+          app_path="src-tauri/target/aarch64-apple-darwin/release/bundle/macos/dida-clone.app"
           mkdir -p trial-downloads
           ditto -c -k --sequesterRsrc --keepParent "$app_path" trial-downloads/dida-clone-apple-silicon.app.zip
           cp src-tauri/target/aarch64-apple-darwin/release/bundle/dmg/*.dmg trial-downloads/
+          cp docs/SECURITY-REVIEW.md trial-downloads/
           shasum -a 256 trial-downloads/*.dmg trial-downloads/*.zip > trial-downloads/SHA256SUMS.txt
-          cat > trial-downloads/INSTALL.txt <<'EOF'
-          Apple Silicon (M-series) macOS trial.
-          Open the DMG and drag dida-clone into Applications.
-          This personal trial uses ad-hoc signing and is not notarized by Apple.
-          If macOS blocks it, first try opening the app, then use:
-          System Settings > Privacy & Security > Open Anyway.
-          The ZIP contains the same application as an alternative to the DMG.
-          Data is stored locally by the app; browser trial data is not synced.
-          EOF
-      - name: Upload macOS downloads
-        uses: actions/upload-artifact@v4
+          cat > trial-downloads/INSTALL.txt <<'TEXT'
+          Dida 0.2 — Apple Silicon Mac trial.
+          Open the DMG and drag Dida into Applications.
+          Personal trial: ad-hoc signed, not notarized by Apple.
+          If blocked, open System Settings > Privacy & Security > Open Anyway.
+          Offline mode: select “先离线使用，稍后登录同步” on first launch.
+          Sync service: https://dida.aiking.net:888/ (same account/password as the web).
+          SQLite data is stored locally. Do not uninstall/remove app data before exporting a backup.
+          Existing local data can be imported explicitly in “账号与同步”.
+          Android is not included in this phase.
+          TEXT
+      - name: Upload Mac installer
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: dida-clone-macOS-Apple-Silicon
           path: trial-downloads/
           if-no-files-found: error
           retention-days: 14
-
+      - name: Save startup diagnostics on failure
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: macos-build-diagnostics
+          path: /tmp/dida-startup.log
+          if-no-files-found: ignore
+          retention-days: 7

@@ -68,7 +68,7 @@ export default function MainLayout({ children }: MainLayoutProps) {
   }, [isResizing, resize, stopResizing]);
 
   return (
-    <div className="flex h-screen bg-white overflow-hidden">
+    <div className="flex h-full bg-white overflow-hidden">
       <NavRail />
       
       <div 

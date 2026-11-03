@@ -74,11 +74,6 @@ impl ListRepository {
             lists.push(list?);
         }
 
-        println!("Rust: ListRepository::get_all found {} lists", lists.len());
-        for l in &lists {
-            println!("  - ID: {}, Name: {}, IsSmart: {}", l.id, l.name, l.is_smart);
-        }
-
         Ok(lists)
     }
 

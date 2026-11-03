@@ -57,7 +57,7 @@ export default function Sidebar({ width = 240 }: SidebarProps) {
     }
 
     createList.mutate({
-      id: crypto.randomUUID(),
+      id: crypto.randomUUID ? crypto.randomUUID() : `list-${Date.now()}-${Math.random().toString(36).slice(2)}`,
       name: newListTitle.trim(),
       icon: '📋',
       color: 'var(--dida-primary)',

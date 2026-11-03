@@ -1,3 +1,5 @@
+> **本分支新增 Dida 0.2 网页 + Mac 离线同步版。** 网页入口：https://dida.aiking.net:888/。Mac 可离线使用，登录后与网页同步；安卓尚未开发。安装、数据迁移和运维说明见 [使用说明](docs/WEB-MACOS.md)，安全检查见 [审计报告](docs/SECURITY-REVIEW.md)。
+
 # 滴答清单克隆 (TickTick Clone)
 一个使用 Tauri + React + TypeScript 开发的跨平台任务管理应用，模仿滴答清单的核心功能。
 

@@ -200,7 +200,6 @@ export function useToggleTask() {
   return useMutation({
     mutationFn: (taskId: string) => taskService.toggleTask(taskId),
     onSuccess: (updatedTask) => {
-      console.log('Task toggled SUCCESS:', updatedTask.id, updatedTask.title, updatedTask.completed);
       
       // 更新特定任务的缓存，防止标题丢失
       queryClient.setQueryData(['task', updatedTask.id], updatedTask);

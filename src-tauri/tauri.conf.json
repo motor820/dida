@@ -1,7 +1,7 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "dida-clone",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "identifier": "com.akm.dida-clone",
   "build": {
     "beforeDevCommand": "npm run dev",
@@ -12,13 +12,15 @@
   "app": {
     "windows": [
       {
-        "title": "dida-clone",
+        "title": "Dida",
         "width": 1420,
-        "height": 827
+        "height": 827,
+        "label": "main",
+        "resizable": true
       }
     ],
     "security": {
-      "csp": null
+      "csp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' asset: http://asset.localhost data: blob:; connect-src ipc: http://ipc.localhost; object-src 'none'; base-uri 'self'; frame-ancestors 'none'"
     }
   },
   "bundle": {
