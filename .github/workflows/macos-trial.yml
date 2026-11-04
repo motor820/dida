@@ -82,12 +82,15 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          app_path="src-tauri/target/aarch64-apple-darwin/release/bundle/macos/dida-clone.app"
+          app_path="src-tauri/target/aarch64-apple-darwin/release/bundle/macos/Dida.app"
           codesign --verify --deep --strict --verbose=2 "$app_path"
-          file "$app_path/Contents/MacOS/dida-clone"
+          test "$(plutil -extract CFBundleName raw -o - "$app_path/Contents/Info.plist")" = "Dida"
+          executable=$(plutil -extract CFBundleExecutable raw -o - "$app_path/Contents/Info.plist")
+          file "$app_path/Contents/MacOS/$executable"
           smoke_path="$app_path"
-          if [ "$(uname -m)" != arm64 ]; then smoke_path="src-tauri/target/x86_64-apple-darwin/release/bundle/macos/dida-clone.app"; fi
-          "$smoke_path/Contents/MacOS/dida-clone" >/tmp/dida-startup.log 2>&1 &
+          if [ "$(uname -m)" != arm64 ]; then smoke_path="src-tauri/target/x86_64-apple-darwin/release/bundle/macos/Dida.app"; fi
+          smoke_executable=$(plutil -extract CFBundleExecutable raw -o - "$smoke_path/Contents/Info.plist")
+          "$smoke_path/Contents/MacOS/$smoke_executable" >/tmp/dida-startup.log 2>&1 &
           dida_pid=$!
           trap 'kill "$dida_pid" 2>/dev/null || true' EXIT
           sleep 8
@@ -99,10 +102,10 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          app_path="src-tauri/target/aarch64-apple-darwin/release/bundle/macos/dida-clone.app"
+          app_path="src-tauri/target/aarch64-apple-darwin/release/bundle/macos/Dida.app"
           mkdir -p trial-downloads
           git rev-parse HEAD > trial-downloads/COMMIT.txt
-          ditto -c -k --sequesterRsrc --keepParent "$app_path" trial-downloads/dida-clone-apple-silicon.app.zip
+          ditto -c -k --sequesterRsrc --keepParent "$app_path" trial-downloads/Dida-apple-silicon.app.zip
           cp src-tauri/target/aarch64-apple-darwin/release/bundle/dmg/*.dmg trial-downloads/
           cp docs/SECURITY-REVIEW.md trial-downloads/
           shasum -a 256 trial-downloads/*.dmg trial-downloads/*.zip > trial-downloads/SHA256SUMS.txt
@@ -120,7 +123,7 @@ jobs:
       - name: Upload Mac installer
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: dida-clone-macOS-Apple-Silicon
+          name: Dida-macOS-Apple-Silicon
           path: trial-downloads/
           if-no-files-found: error
           retention-days: 14

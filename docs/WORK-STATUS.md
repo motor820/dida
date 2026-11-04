@@ -48,3 +48,9 @@
 用户明确要求将最新代码打包为 M1 应用，本次开始 macOS 专项检查和 GitHub Actions 打包。上一轮“尚未 review/打包”的记录描述当时状态，不限制本次已授权操作。共享服务层、SQLite IPC、Keychain、CSP、头像资源路径和响应式窗口适配检查未发现阻断问题；bundle identifier 和数据库路径保持原值。
 
 本地重新运行 37 项 Node 测试、3 项 SQLite 与 7 项服务端测试以及前端生产构建，全部通过。当前 Linux 环境不代替新版 M1 真机验收，原生编译、签名和启动检查由 GitHub Mac runner 执行。构建报告见 [MACOS-BUILD-20261105.md](MACOS-BUILD-20261105.md)。
+
+## 第三栏字号与 Mac 名称调整
+
+子任务标题、添加子任务输入、描述和检查事项文本模式由 13px 调整为 14px，展示与编辑保持一致。隔离浏览器实测子任务/描述的展示和编辑字号均为 14px，现有任务 UI、响应式与编辑回归通过，8 项排序回归及前端生产构建通过。
+
+Mac productName 和 mainBinaryName 统一为 Dida；新应用包为 Dida.app，GitHub 产物名称 Dida-macOS-Apple-Silicon。CI 从 Info.plist 获取可执行文件名，校验 CFBundleName=Dida，避免硬编码旧名称。原 bundle identifier、数据库路径与 Keychain 服务条目保持原值。开始重新生成 M1 安装包，最终构建结果记录在本机 docs/work-status.md。

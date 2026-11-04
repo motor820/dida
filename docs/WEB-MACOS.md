@@ -55,3 +55,7 @@ CI 在可用的标准 Intel Mac 运行器上交叉编译 aarch64 安装包，并
 ## 开发进度与交接
 
 当前待办以 [TODO.md](../TODO.md) 为准，交接以 [WORK-STATUS.md](WORK-STATUS.md) 为准。受版本管理的部署资料见 [deployment/index.md](deployment/index.md)。
+
+## 当前 Mac 应用名称
+
+新版应用名称及可执行文件名为 Dida，安装包内为 Dida.app，当前 Actions 产物名为 Dida-macOS-Apple-Silicon。旧包中的 dida-clone.app 属于此前构建。应用标识 com.akm.dida-clone、SQLite 目录和 Keychain 条目保持兼容。第三栏子任务标题及描述统一使用 14px，编辑与展示一致。

@@ -782,12 +782,12 @@ export default function TaskDetail() {
                 onChange={handleDescriptionChange}
                 onBlur={handleDescriptionBlur}
                 placeholder="输入内容或使用 / 快速插入"
-                className="w-full min-h-[28px] overflow-hidden bg-transparent outline-none text-[13px] text-gray-700 leading-relaxed resize-none placeholder:text-gray-300"
+                className="w-full min-h-[28px] overflow-hidden bg-transparent outline-none text-[14px] text-gray-700 leading-relaxed resize-none placeholder:text-gray-300"
               />
             ) : task.description ? (
-              <p className="text-[13px] text-gray-700 leading-relaxed whitespace-pre-wrap">{task.description}</p>
+              <p className="text-[14px] text-gray-700 leading-relaxed whitespace-pre-wrap">{task.description}</p>
             ) : (
-              <p className="text-[13px] text-gray-300 italic">点此添加详细描述...</p>
+              <p className="text-[14px] text-gray-300 italic">点此添加详细描述...</p>
             )}
           </div>
 
@@ -827,7 +827,7 @@ export default function TaskDetail() {
               readOnly={isTrashView || convertDescription.isPending}
               onChange={event => { setChecklistText(event.target.value); setChecklistDirty(true); }}
               onBlur={handleChecklistTextBlur}
-              className="block w-full min-h-[28px] overflow-hidden resize-none bg-transparent text-[13px] text-gray-700 leading-relaxed outline-none"
+              className="block w-full min-h-[28px] overflow-hidden resize-none bg-transparent text-[14px] text-gray-700 leading-relaxed outline-none"
             />
           ) : <>
           <DndContext
@@ -863,7 +863,7 @@ export default function TaskDetail() {
                 value={newSubtaskTitle}
                 onChange={(e) => setNewTaskTitle(e.target.value)}
                 placeholder="添加子任务..."
-                className="flex-1 bg-transparent outline-none text-[13px] text-gray-700 placeholder:text-gray-300"
+                className="flex-1 bg-transparent outline-none text-[14px] text-gray-700 placeholder:text-gray-300"
               />
             </form>
           )}

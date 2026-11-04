@@ -234,11 +234,11 @@ export default function SubtaskItem({ subtask, readOnly = false, autoFocus = fal
                         onChange={(e) => handleTitleChange(e.target.value)}
                         onBlur={handleSave}
                         onKeyDown={handleKeyDown}
-                        className="dida-title-editor block w-full resize-none overflow-hidden whitespace-pre-wrap [overflow-wrap:anywhere] bg-transparent text-[13px] leading-5 outline-none placeholder:text-gray-300"
+                        className="dida-title-editor block w-full resize-none overflow-hidden whitespace-pre-wrap [overflow-wrap:anywhere] bg-transparent text-[14px] leading-5 outline-none placeholder:text-gray-300"
                     />
                 ) : (
                     <span
-                        className={`text-[13px] leading-5 transition-colors block whitespace-pre-wrap [overflow-wrap:anywhere] ${subtask.completed ? 'text-[var(--dida-text-tertiary)]' : 'text-[var(--dida-text-main)]'
+                        className={`text-[14px] leading-5 transition-colors block whitespace-pre-wrap [overflow-wrap:anywhere] ${subtask.completed ? 'text-[var(--dida-text-tertiary)]' : 'text-[var(--dida-text-main)]'
                             }`}
                     >
                         {subtask.title || '无标题子任务'}
