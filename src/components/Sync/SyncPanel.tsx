@@ -4,6 +4,7 @@ import { request } from '../../sync/api';
 interface Device { id: string; name: string; created: number; current: boolean }
 export default function SyncPanel({ onClose }: { onClose: () => void }) {
   const status = useSyncExternalStore(offline.subscribe, offline.getStatus);
+  const [username, setUsername] = useState(status.username || 'motordida');
   const [password, setPassword] = useState(''), [current, setCurrent] = useState(''), [next, setNext] = useState('');
   const [message, setMessage] = useState(''), [busy, setBusy] = useState(false), [devices, setDevices] = useState<Device[]>([]);
   const action = async (fn: () => Promise<void>) => { setBusy(true); setMessage(''); try { await fn(); } catch (e) { setMessage(e instanceof Error ? e.message : String(e)); } finally { setBusy(false); } };
@@ -17,9 +18,10 @@ export default function SyncPanel({ onClose }: { onClose: () => void }) {
     <section role="dialog" aria-modal="true" aria-label="账号与同步" className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-2xl bg-white p-6 shadow-xl space-y-5" onClick={e => e.stopPropagation()}>
       <div className="flex items-center justify-between"><h2 className="text-lg font-semibold">账号与同步</h2><button aria-label="关闭" onClick={onClose}>关闭</button></div>
       <p className="text-sm text-slate-500">服务： https://dida.aiking.net:888<br />上次同步：{status.lastSync ? new Date(status.lastSync).toLocaleString() : '尚未同步'} · 待上传 {status.pending} 项</p>
-      <form className="space-y-3" onSubmit={e => { e.preventDefault(); void action(async () => { await offline.login('motor', password); setPassword(''); setMessage('登录成功'); await refresh(); }); }}>
+      {status.error && <p role="status" className="text-sm text-amber-700">本机已保存 · {status.error}</p>}
+      <form className="space-y-3" onSubmit={e => { e.preventDefault(); void action(async () => { await offline.login(username, password); setPassword(''); setMessage('登录成功'); await refresh(); }); }}>
         <h3 className="font-medium">{status.username ? '重新登录同步' : '登录同步'}</h3>
-        <p className="text-sm">账号：motor</p><input aria-label="同步密码" type="password" autoComplete="current-password" placeholder="账号密码" className="w-full border rounded-lg p-2" value={password} onChange={e => setPassword(e.target.value)} required />
+        <label className="block text-sm">账号<input aria-label="同步账号" autoComplete="username" className="mt-1 w-full border rounded-lg p-2" value={username} onChange={e => setUsername(e.target.value)} required /></label><input aria-label="同步密码" type="password" autoComplete="current-password" placeholder="账号密码" className="w-full border rounded-lg p-2" value={password} onChange={e => setPassword(e.target.value)} required />
         <button disabled={busy} className="rounded-lg bg-blue-600 px-4 py-2 text-white">登录</button>
       </form>
       <div className="border-t pt-4 space-y-3"><h3 className="font-medium">数据备份与迁移</h3>

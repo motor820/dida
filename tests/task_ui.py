@@ -27,6 +27,23 @@ with sync_playwright() as p:
     page.goto(url)
     expect(page.get_by_placeholder('添加任务', exact=True)).to_be_visible()
     page.wait_for_function("async () => !(await import('/src/sync/store.ts')).offline.getStatus().syncing")
+    rail = page.get_by_role('navigation', name='快捷导航', exact=True)
+    sync_button = rail.get_by_role('button', name='立即同步', exact=True)
+    settings_button = rail.get_by_role('button', name='设置', exact=True)
+    expect(sync_button).to_be_visible()
+    expect(settings_button).to_be_visible()
+    assert rail.bounding_box()['y'] == 0, 'The removed top status row must not reserve height'
+    assert sync_button.bounding_box()['y'] < settings_button.bounding_box()['y']
+    with page.expect_request('**/api/v1/sync/pull?*'):
+        sync_button.click()
+    page.wait_for_function("async () => !(await import('/src/sync/store.ts')).offline.getStatus().syncing")
+    settings_button.click()
+    account = page.get_by_role('dialog', name='账号与同步', exact=True)
+    expect(account).to_be_visible()
+    expect(account.get_by_label('同步账号', exact=True)).to_have_value('isolated-ui-test')
+    expect(account.get_by_role('button', name='导出本机数据', exact=True)).to_be_visible()
+    account.get_by_role('button', name='关闭', exact=True).click()
+    expect(account).to_have_count(0)
     ids = page.evaluate("""async () => {
         const {taskService:s} = await import('/src/services/task.ts');
         const first = await s.createTaskSimple('第一条任务', 'smart_inbox');
@@ -332,6 +349,8 @@ with sync_playwright() as p:
     nav_dialog.get_by_role('button', name='收集箱', exact=True).click()
     expect(nav_dialog).to_be_hidden()
     page.set_viewport_size({'width': 375, 'height': 812})
+    expect(rail.get_by_role('button', name='立即同步', exact=True)).to_be_visible()
+    expect(rail.get_by_role('button', name='设置', exact=True)).to_be_visible()
     assert abs(column.bounding_box()['width'] - 315) < 1
     column.locator(f'[data-task-row="{sort_parent}"]').click()
     expect(detail_dialog).to_be_visible()

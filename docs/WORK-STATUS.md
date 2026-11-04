@@ -54,3 +54,11 @@
 子任务标题、添加子任务输入、描述和检查事项文本模式由 13px 调整为 14px，展示与编辑保持一致。隔离浏览器实测子任务/描述的展示和编辑字号均为 14px，现有任务 UI、响应式与编辑回归通过，8 项排序回归及前端生产构建通过。
 
 Mac productName 和 mainBinaryName 统一为 Dida；新应用包为 Dida.app，GitHub 产物名称 Dida-macOS-Apple-Silicon。CI 从 Info.plist 获取可执行文件名，校验 CFBundleName=Dida，避免硬编码旧名称。原 bundle identifier、数据库路径与 Keychain 服务条目保持原值。开始重新生成 M1 安装包，最终构建结果记录在本机 docs/work-status.md。
+
+## MCP / OpenClaw 与左下角同步设置
+
+新增官方 SDK v2 stdio Dida MCP，提供 12 个待办、子任务、清单和标签工具，复用同步 API 和重复规则；Node 24 直接运行。Rona 的 dida-tasks skill 已安装并可见，OpenClaw 原生 MCP probe 成功，Gateway 日志确认热加载；下一次 Rona 运行建立会话连接。正式账号仅做状态/待办只读验证，任务与密码未改；所有写入测试在独立数据库完成。维护与验收见 MCP.md。
+
+新待办路由到 Dida；personalrepo 历史 action_items 保留，不自动迁移。专用会话 30 天有效，可在设置中撤销；过期/改密/恢复后由维护者显式重新配置，不自动绕过撤销。OpenClaw 原配置已受限备份。
+
+界面：立即同步改为左下角设置上方的刷新图标，设置直接打开账号与同步面板；删除顶部整行，状态保留在按钮提示与设置中。账号登录表单修复旧 motor 硬编码，默认 motordida 且可编辑。完整隔离任务 UI 回归及宽窄屏入口检查通过，前端构建通过，已备份后发布网页。共享 Mac 源码同步更新，本轮没有重新生成 Mac 安装包。

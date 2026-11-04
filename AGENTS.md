@@ -2,7 +2,7 @@
 
 ## Project Structure & Module Organization
 
-Dida 0.2 delivers a React 19/TypeScript web UI, Tauri 2 Mac client, and Rust/Axum sync server. `src/components/` groups UI by feature; `hooks/`, `services/`, and `sync/` implement queries, domain operations, and offline state. `src-tauri/` provides desktop IPC and legacy data import. `crates/local-store/` provides transactional SQLite state persistence. `server/` contains the API; `tests/` contains sync tests; `public/` contains assets. Read nested `AGENTS.md` files before editing their directories.
+Dida 0.2 delivers a React 19/TypeScript web UI, Tauri 2 Mac client, and Rust/Axum sync server. `src/components/` groups UI by feature; `hooks/`, `services/`, and `sync/` implement queries, domain operations, and offline state. `src-tauri/` provides desktop IPC and legacy data import. `crates/local-store/` provides transactional SQLite state persistence. `server/` contains the API; `mcp/` is the Node 24 stdio MCP adapter, with its own locked dependencies; `tests/` contains sync tests; `public/` contains assets. Read nested `AGENTS.md` files before editing their directories.
 
 ## Build, Test, and Development Commands
 
@@ -10,6 +10,7 @@ Use Node.js 24 and Rust stable. Run from this checkout:
 
 - `npm ci`: install locked JavaScript dependencies.
 - `npm run build`: type-check and build the web UI.
+- `npm ci --prefix mcp` and `npm run test:mcp`: install and test the standalone MCP adapter against an isolated API.
 - `npm run test:sync`: run Node TypeScript sync tests.
 - `cargo test --locked --manifest-path crates/local-store/Cargo.toml`: test persistence and legacy initialization.
 - `cargo test --locked --manifest-path server/Cargo.toml`: test API authentication and synchronization.

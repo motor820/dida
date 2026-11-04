@@ -49,3 +49,9 @@ M1 打包命令：`npm run tauri build -- --target aarch64-apple-darwin --bundle
 - [快速开始](QUICKSTART.md) · [架构](ARCHITECTURE.md) · [贡献指南](AGENTS.md) · [安全审计](docs/SECURITY-REVIEW.md) · [部署资料](docs/deployment/index.md)
 
 源码仓库为 <https://github.com/motor820/dida>，原始代码来自 `jameingh/dida-clone`。许可文件见 [LICENSE](LICENSE)。
+
+## MCP 与 Rona
+
+已提供 stdio Dida MCP，支持待办、子任务、清单和标签管理，并接入本机 OpenClaw。安装依赖 `npm ci --prefix mcp`，验证 `npm run test:mcp`，配置与会话维护见 [MCP.md](docs/MCP.md)。Rona 使用 [dida-tasks skill](integrations/openclaw/dida-tasks/SKILL.md) 调用工具。新待办统一放入 Dida，旧 personalrepo 记录不会自动搬迁。
+
+同步刷新入口已移至左下角设置按钮上方，账号、设备和导入导出由设置按钮打开；页面顶部状态行已删除。

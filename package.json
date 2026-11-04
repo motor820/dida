@@ -11,7 +11,9 @@
     "tauri": "tauri",
     "test:sync": "node --experimental-strip-types tests/sync.test.ts",
     "test:tasks": "node --experimental-strip-types tests/subtaskOrder.test.ts && node --experimental-strip-types tests/taskOrder.test.ts",
-    "test:recurrence": "node --experimental-strip-types tests/recurrence.test.ts"
+    "test:recurrence": "node --experimental-strip-types tests/recurrence.test.ts",
+    "mcp": "node --experimental-strip-types mcp/src/server.mjs",
+    "test:mcp": "npm --prefix mcp test"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",

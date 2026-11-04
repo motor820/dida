@@ -1,13 +1,12 @@
 import { ReactNode, useEffect, useState, useSyncExternalStore } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { offline } from '../../sync/store';
-import SyncPanel from './SyncPanel';
 
 export default function SyncGate({ children }: { children: ReactNode }) {
   const status = useSyncExternalStore(offline.subscribe, offline.getStatus);
   const query = useQueryClient();
-  const [username, setUsername] = useState('motor'), [password, setPassword] = useState('');
-  const [error, setError] = useState(''), [busy, setBusy] = useState(false), [settings, setSettings] = useState(false);
+  const [username, setUsername] = useState('motordida'), [password, setPassword] = useState('');
+  const [error, setError] = useState(''), [busy, setBusy] = useState(false);
   useEffect(() => {
     void offline.initialize().catch(e => setError(String(e)));
     const update = () => { if (!offline.getStatus().authorized) query.clear(); else void query.invalidateQueries(); };
@@ -30,12 +29,5 @@ export default function SyncGate({ children }: { children: ReactNode }) {
       </form>
     </div>
   );
-  return <div className="h-screen flex flex-col">
-    <div className="flex items-center justify-between gap-3 border-b bg-slate-50 px-4 py-2 text-xs text-slate-600">
-      <span className="min-w-0 flex-1 truncate">{status.username || '离线使用'} · {status.syncing ? '正在同步…' : status.error ? `本机已保存 · ${status.error}` : status.pending ? `本机已保存 · 待上传 ${status.pending} 项` : status.username ? '已同步' : '数据仅保存在本机'}</span>
-      <div className="flex shrink-0 gap-4"><button disabled={status.syncing || !status.username} onClick={() => { void offline.sync(); }}>立即同步</button><button onClick={() => setSettings(true)}>账号与同步</button></div>
-    </div>
-    <div className="min-h-0 flex-1">{children}</div>
-    {settings && <SyncPanel onClose={() => setSettings(false)} />}
-  </div>;
+  return <div className="h-screen">{children}</div>;
 }
