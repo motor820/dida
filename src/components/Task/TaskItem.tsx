@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
+import { useAutoGrowTextarea } from '../../hooks/useAutoGrowTextarea';
 import { Task, Priority, RepeatRule } from '../../types';
-import { useToggleTask, useUpdateTask, useDeleteTask, useUndoDeleteTask, useDeleteTaskPermanently, useCreateSubtaskSimple } from '../../hooks/useTasks';
+import { useToggleTask, useUpdateTask, useDeleteTask, useUndoDeleteTask, useDeleteTaskPermanently, useCreateSubtaskSimple, useCreateTaskAfter } from '../../hooks/useTasks';
 import { useTags } from '../../hooks/useTags';
 import { useAppStore } from '../../store/useAppStore';
 import { useAlertStore } from '../../store/useAlertStore';
@@ -15,10 +16,30 @@ import { formatTaskDate, formatTaskDateTime, isOverdue } from '../../utils/date'
 
 interface TaskItemProps {
   task: Task;
-  depth?: number;
+  subtasks: Task[];
+  isEditing: boolean;
+  onEdit: () => void;
+  onEditEnd: () => void;
+  onCreated: (task: Task) => void;
 }
 
-export default function TaskItem({ task, depth = 0 }: TaskItemProps) {
+export default function TaskItem({ task, subtasks, isEditing, onEdit, onEditEnd, onCreated }: TaskItemProps) {
+  const [title, setTitle] = useState(task.title);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
+  useAutoGrowTextarea(inputRef, title, isEditing);
+  const busyRef = useRef(false);
+  const skipBlurRef = useRef(false);
+  const createAfter = useCreateTaskAfter();
+  useEffect(() => { if (!isEditing) setTitle(task.title); }, [task.title, isEditing]);
+  useEffect(() => {
+    if (isEditing) {
+      skipBlurRef.current = false;
+      inputRef.current?.focus();
+      const end = inputRef.current?.value.length ?? 0;
+      inputRef.current?.setSelectionRange(end, end);
+      inputRef.current?.scrollIntoView({ block: 'nearest' });
+    }
+  }, [isEditing]);
   const toggleTask = useToggleTask();
   const deleteTask = useDeleteTask();
   const undoDeleteTask = useUndoDeleteTask();
@@ -33,7 +54,7 @@ export default function TaskItem({ task, depth = 0 }: TaskItemProps) {
 
   const [menuPos, setMenuPos] = useState<{ x: number; y: number } | null>(null);
   const [showDatePicker, setShowDatePicker] = useState(false);
-  const [datePickerPos, setDatePickerPos] = useState<{ top: number; left?: number; right?: number; bottom?: number } | null>(null);
+  const [datePickerPos, setDatePickerPos] = useState<{ top?: number; left?: number; right?: number; bottom?: number } | null>(null);
   const dateTriggerRef = useRef<HTMLDivElement>(null);
   const datePickerRef = useRef<HTMLDivElement>(null);
 
@@ -80,6 +101,7 @@ export default function TaskItem({ task, depth = 0 }: TaskItemProps) {
     // 如果正在拖拽，不触发点击
     if (isDragging) return;
     setSelectedTaskId(task.id);
+    if (!isTrashView) onEdit();
   };
 
   const handleDelete = (e?: React.MouseEvent) => {
@@ -183,7 +205,7 @@ export default function TaskItem({ task, depth = 0 }: TaskItemProps) {
         finalPos.right = viewportWidth - rect.right;
       }
       
-      setDatePickerPos(finalPos as any);
+      setDatePickerPos(finalPos);
       setShowDatePicker(!showDatePicker);
     }
   };
@@ -198,17 +220,65 @@ export default function TaskItem({ task, depth = 0 }: TaskItemProps) {
     setShowDatePicker(false);
   };
 
+  const saveTitle = async () => {
+    if (skipBlurRef.current) { skipBlurRef.current = false; return; }
+    if (busyRef.current) return;
+    if (title !== task.title) {
+      try { await updateTask.mutateAsync({ ...task, title }); }
+      catch { return; }
+    }
+    onEditEnd();
+  };
+
+  const handleTitleKey = async (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (event.nativeEvent.isComposing || busyRef.current) return;
+    if (event.key === 'Enter' && !event.shiftKey) {
+      event.preventDefault();
+      busyRef.current = true;
+      try {
+        const next = await createAfter.mutateAsync({ id: task.id, title });
+        setSelectedTaskId(next.id);
+        onCreated(next);
+      } catch { /* The global mutation handler displays the error; keep the draft. */ }
+      finally { busyRef.current = false; }
+    } else if (event.key === 'Backspace' && title === '' && !task.description && subtasks.length === 0) {
+      event.preventDefault();
+      skipBlurRef.current = true;
+      busyRef.current = true;
+      try {
+        await deleteTask.mutateAsync(task.id);
+        onEditEnd();
+        if (isSelected) setSelectedTaskId(null);
+      } catch { skipBlurRef.current = false; }
+      finally { busyRef.current = false; }
+    } else if (event.key === 'Escape') {
+      event.stopPropagation();
+      skipBlurRef.current = true;
+      setTitle(task.title);
+      onEditEnd();
+    }
+  };
+  const preview = task.description.trim().replace(/\s+/g, ' ') || subtasks.map(t => t.title || '无标题').join('；');
+
   return (
     <>
       <div
         ref={setNodeRef}
+        tabIndex={0}
+        data-task-row={task.id}
         style={{
           ...style,
-          paddingLeft: `${depth * 20}px`
+          paddingLeft: 0
         }}
         onClick={handleClick}
+        onKeyDown={event => {
+          if (event.target === event.currentTarget && event.key === 'Enter') {
+            event.preventDefault();
+            handleClick();
+          }
+        }}
         onContextMenu={handleContextMenu}
-        className={`group flex items-center gap-1 px-1 py-1.5 border-b border-gray-50 cursor-pointer transition-colors ${isSelected ? 'bg-[var(--dida-primary-light)]' : 'hover:bg-[var(--dida-bg-hover)]'
+        className={`group flex items-center gap-1 px-1 py-3 border-b border-gray-50 cursor-pointer transition-colors ${isSelected ? 'bg-[var(--dida-primary-light)]' : 'hover:bg-[var(--dida-bg-hover)]'
           } ${isDragging ? 'opacity-50 shadow-lg bg-white ring-1 ring-[rgba(var(--dida-primary-rgb),0.2)] rounded-sm' : ''}`}
       >
         {/* 拖拽手柄 - 悬浮可见 */}
@@ -234,14 +304,18 @@ export default function TaskItem({ task, depth = 0 }: TaskItemProps) {
           />
         </div>
 
-        {/* 任务内容 */}
-        <div className="flex-1 min-w-0 px-1 select-none">
-          <div
-            className={`text-[14px] leading-tight truncate ${task.completed ? 'text-gray-400' : 'text-gray-800'
-              }`}
-          >
-            {task.title || '无标题任务'}
-          </div>
+        <div className="flex-1 min-w-0 px-1">
+          {isEditing && !isTrashView ? (
+            <textarea ref={inputRef} rows={1} value={title} data-task-id={task.id} readOnly={createAfter.isPending || deleteTask.isPending} aria-label="任务名称" placeholder="无标题"
+              onChange={e => setTitle(e.target.value)} onBlur={saveTitle} onKeyDown={handleTitleKey}
+              className="dida-title-editor block w-full resize-none overflow-hidden whitespace-pre-wrap [overflow-wrap:anywhere] bg-transparent text-[16px] font-bold leading-6 text-gray-800 outline-none placeholder:text-gray-300"
+            />
+          ) : (
+            <div className={`text-[16px] font-bold leading-6 truncate ${task.completed ? 'text-gray-400' : 'text-gray-800'}`}>
+              {task.title || <span className="text-gray-300">无标题</span>}
+            </div>
+          )}
+          {preview && <div className="mt-1 truncate text-[12px] leading-4 text-gray-500">{preview}</div>}
         </div>
 
         {/* 标签 - 移动到右侧，日期的左边 */}
@@ -362,6 +436,7 @@ export default function TaskItem({ task, depth = 0 }: TaskItemProps) {
           onClose={() => setMenuPos(null)}
           onSetPriority={handleSetPriority}
           onSetDate={handleSetDate}
+          onUpdateDate={handleDatePickerSelect}
           onDelete={handleDelete}
           onRestore={handleRestore}
           onDeletePermanently={handleDeletePermanently}
@@ -389,6 +464,7 @@ export default function TaskItem({ task, depth = 0 }: TaskItemProps) {
             reminder={task.reminder || 'none'}
             repeat_rule={task.repeat_rule}
             onSelect={handleDatePickerSelect}
+            onCancel={() => setShowDatePicker(false)}
           />
         </div>
       )}

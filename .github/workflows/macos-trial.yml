@@ -22,7 +22,7 @@ concurrency:
 jobs:
   build:
     name: Build offline Mac client
-    if: github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch'
+    if: github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[build-macos]')
     runs-on: macos-15-intel
     timeout-minutes: 45
     env:
@@ -48,6 +48,8 @@ jobs:
           npm ci --no-audit --no-fund
           npm audit --audit-level=high
           npm run test:sync
+          npm run test:tasks
+          npm run test:recurrence
       - name: Test offline persistence and synchronization
         run: |
           cargo test --locked --manifest-path crates/local-store/Cargo.toml
@@ -99,6 +101,7 @@ jobs:
           set -euo pipefail
           app_path="src-tauri/target/aarch64-apple-darwin/release/bundle/macos/dida-clone.app"
           mkdir -p trial-downloads
+          git rev-parse HEAD > trial-downloads/COMMIT.txt
           ditto -c -k --sequesterRsrc --keepParent "$app_path" trial-downloads/dida-clone-apple-silicon.app.zip
           cp src-tauri/target/aarch64-apple-darwin/release/bundle/dmg/*.dmg trial-downloads/
           cp docs/SECURITY-REVIEW.md trial-downloads/

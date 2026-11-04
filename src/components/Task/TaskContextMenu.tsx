@@ -1,10 +1,5 @@
 import React, { useState } from 'react';
 import { 
-  Sun, 
-  Sunrise, 
-  CalendarDays, 
-  CalendarRange, 
-  Calendar, 
   Flag, 
   ListTree, 
   Link2, 
@@ -20,9 +15,11 @@ import {
   ChevronRight,
   RotateCcw
 } from 'lucide-react';
-import { Task, Priority } from '../../types';
+import { Task, Priority, RepeatRule } from '../../types';
 import ContextMenu, { ContextMenuSeparator } from '../Common/ContextMenu';
 import TagSelectorPopover from './TagSelectorPopover';
+import DatePicker from '../Common/DatePicker';
+import DateShortcuts from '../Common/DateShortcuts';
 import { getPriorityTextClass, getPriorityBgColor } from '../../utils/priority';
 
 interface TaskContextMenuProps {
@@ -33,6 +30,7 @@ interface TaskContextMenuProps {
   onClose: () => void;
   onSetPriority: (priority: Priority) => void;
   onSetDate: (days: number | null) => void;
+  onUpdateDate: (date: number | undefined, reminder?: string, repeat?: RepeatRule | null) => void;
   onDelete: () => void;
   onRestore?: () => void;
   onDeletePermanently?: () => void;
@@ -48,13 +46,22 @@ export default function TaskContextMenu({
   onClose,
   onSetPriority,
   onSetDate,
+  onUpdateDate,
   onDelete,
   onRestore,
   onDeletePermanently,
   onAddSubtask,
   onUpdateTags
 }: TaskContextMenuProps) {
+  const [showDatePicker, setShowDatePicker] = useState(false);
   const [showTagSelector, setShowTagSelector] = useState(false);
+
+  if (showDatePicker) {
+    return <ContextMenu x={x} y={y} onClose={onClose}>
+      <DatePicker selectedDate={task.due_date ?? undefined} reminder={task.reminder ?? 'none'} repeat_rule={task.repeat_rule}
+        onSelect={(date, reminder, repeat) => { onUpdateDate(date, reminder, repeat); onClose(); }} onCancel={onClose} />
+    </ContextMenu>;
+  }
 
   if (showTagSelector) {
     return (
@@ -97,42 +104,10 @@ export default function TaskContextMenu({
         {/* 日期部分 */}
         <div className="px-3 py-2">
           <div className="text-[11px] text-[var(--dida-text-tertiary)] mb-2">日期</div>
-          <div className="flex items-center justify-between px-1">
-            <button 
-              onClick={() => { onSetDate(0); onClose(); }}
-              className="p-1.5 hover:bg-[var(--dida-bg-hover)] rounded-md text-[var(--dida-text-secondary)] transition-colors"
-              title="今天"
-            >
-              <Sun className="w-4 h-4" />
-            </button>
-            <button 
-              onClick={() => { onSetDate(1); onClose(); }}
-              className="p-1.5 hover:bg-[var(--dida-bg-hover)] rounded-md text-[var(--dida-text-secondary)] transition-colors"
-              title="明天"
-            >
-              <Sunrise className="w-4 h-4" />
-            </button>
-            <button 
-              onClick={() => { onSetDate(7); onClose(); }}
-              className="p-1.5 hover:bg-[var(--dida-bg-hover)] rounded-md text-[var(--dida-text-secondary)] transition-colors"
-              title="下周"
-            >
-              <CalendarDays className="w-4 h-4" />
-            </button>
-            <button 
-              onClick={() => { onSetDate(30); onClose(); }}
-              className="p-1.5 hover:bg-[var(--dida-bg-hover)] rounded-md text-[var(--dida-text-secondary)] transition-colors"
-              title="下月"
-            >
-              <CalendarRange className="w-4 h-4" />
-            </button>
-            <button 
-              className="p-1.5 hover:bg-[var(--dida-bg-hover)] rounded-md text-[var(--dida-text-secondary)] transition-colors"
-              title="选择日期"
-            >
-              <Calendar className="w-4 h-4" />
-            </button>
-          </div>
+          <DateShortcuts onSelect={days => {
+            if (days === undefined) setShowDatePicker(true);
+            else { onSetDate(days); onClose(); }
+          }} />
         </div>
 
         <ContextMenuSeparator />

@@ -5,8 +5,9 @@ export const REPEAT_OPTIONS = [
   { label: '每天', value: RepeatType.Daily },
   { label: '每周', value: RepeatType.Weekly },
   { label: '每月', value: RepeatType.Monthly },
+  { label: '每季度', value: RepeatType.Quarterly },
   { label: '每年', value: RepeatType.Yearly },
-  { label: '工作日', value: RepeatType.Weekday },
+  { label: '周一至周五', value: RepeatType.Weekday },
   { label: '自定义', value: RepeatType.Custom },
 ];
 
@@ -15,7 +16,8 @@ export const REPEAT_TYPE_LABELS: Record<string, string> = {
   [RepeatType.Daily]: '每天',
   [RepeatType.Weekly]: '每周',
   [RepeatType.Monthly]: '每月',
+  [RepeatType.Quarterly]: '每季度',
   [RepeatType.Yearly]: '每年',
-  [RepeatType.Weekday]: '工作日',
+  [RepeatType.Weekday]: '周一至周五',
   [RepeatType.Custom]: '自定义',
 };

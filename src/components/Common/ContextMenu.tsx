@@ -20,17 +20,19 @@ export default function ContextMenu({ x, y, onClose, children }: ContextMenuProp
 
         // 监听滚动和点击，关闭菜单
         document.addEventListener('mousedown', handleClickOutside);
-        window.addEventListener('scroll', onClose, { capture: true });
+        const closeOnScroll = (event: Event) => { if (!(event.target instanceof Node) || !menuRef.current?.contains(event.target)) onClose(); };
+        window.addEventListener('scroll', closeOnScroll, { capture: true });
 
         return () => {
             document.removeEventListener('mousedown', handleClickOutside);
-            window.removeEventListener('scroll', onClose, { capture: true });
+            window.removeEventListener('scroll', closeOnScroll, { capture: true });
         };
     }, [onClose]);
 
     // 边界检查：确保不超出窗口
     useEffect(() => {
-        if (menuRef.current) {
+        const reposition = () => {
+          if (menuRef.current) {
             const rect = menuRef.current.getBoundingClientRect();
             let adjustedX = x;
             let adjustedY = y;
@@ -49,14 +51,22 @@ export default function ContextMenu({ x, y, onClose, children }: ContextMenuProp
             adjustedX = Math.max(8, adjustedX);
             adjustedY = Math.max(8, adjustedY);
 
-            setPos({ left: adjustedX, top: adjustedY });
-        }
+            setPos(previous => previous.left === adjustedX && previous.top === adjustedY ? previous : { left: adjustedX, top: adjustedY });
+          }
+        };
+        reposition();
+        const observer = new ResizeObserver(reposition);
+        if (menuRef.current) observer.observe(menuRef.current);
+        window.addEventListener('resize', reposition);
+        return () => { observer.disconnect(); window.removeEventListener('resize', reposition); };
     }, [x, y]);
 
     return (
         <div
             ref={menuRef}
-            className="fixed z-[9999] bg-white border border-[var(--dida-border-light)] rounded-lg shadow-[0_4px_20px_rgba(0,0,0,0.15)] overflow-hidden min-w-[160px]"
+            aria-label="任务操作"
+            onKeyDown={event => { if (event.key === 'Escape') { event.stopPropagation(); onClose(); } }}
+            className="fixed z-[9999] bg-white border border-[var(--dida-border-light)] rounded-lg shadow-[0_4px_20px_rgba(0,0,0,0.15)] overflow-y-auto max-h-[calc(100dvh-16px)] min-w-[160px]"
             style={{ left: pos.left, top: pos.top }}
             onContextMenu={(e) => e.preventDefault()}
         >

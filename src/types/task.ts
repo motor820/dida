@@ -10,6 +10,7 @@ export enum RepeatType {
   Daily = 'daily',
   Weekly = 'weekly',
   Monthly = 'monthly',
+  Quarterly = 'quarterly',
   Yearly = 'yearly',
   Weekday = 'weekday',
   Custom = 'custom',
@@ -18,6 +19,9 @@ export enum RepeatType {
 export interface RepeatRule {
   type: RepeatType;
   interval?: number;
+  frequency?: 'daily' | 'weekly' | 'monthly' | 'yearly';
+  timezone?: string;
+  timeOfDay?: string;
   daysOfWeek?: number[];
   dayOfMonth?: number;
   monthOfYear?: number;

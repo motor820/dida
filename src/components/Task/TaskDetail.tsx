@@ -1,4 +1,4 @@
-import { useTask, useSubtasks, useCreateSubtaskSimple, useUpdateTaskOrders, useUpdateTask, useUndoDeleteTask, useDeleteTaskPermanently, useDeleteTask, useToggleTask } from '../../hooks/useTasks';
+import { useTask, useSubtasks, useCreateSubtaskSimple, useUpdateTaskOrders, useUpdateTask, useUndoDeleteTask, useDeleteTaskPermanently, useDeleteTask, useToggleTask, useConvertDescriptionToSubtasks } from '../../hooks/useTasks';
 import { useTags, useCreateTag } from '../../hooks/useTags';
 import { useAppStore } from '../../store/useAppStore';
 import { useAlertStore } from '../../store/useAlertStore';
@@ -6,6 +6,8 @@ import { X, Calendar, Flag, AlignLeft, ListTodo, Plus, Hash, RotateCcw, Trash2, 
 import { Priority, Task, RepeatRule } from '../../types';
 import { useState, useEffect, useRef, useMemo } from 'react';
 import SubtaskItem from './SubtaskItem';
+import { useAutoGrowTextarea } from '../../hooks/useAutoGrowTextarea';
+import { sortSubtasks } from '../../utils/subtaskOrder';
 import DatePicker from '../Common/DatePicker';
 import { useLists } from '../../hooks/useLists';
 import { useQueryClient } from '@tanstack/react-query';
@@ -30,41 +32,8 @@ import {
 import { restrictToVerticalAxis } from '@dnd-kit/modifiers';
 
 export default function TaskDetail() {
-  const { selectedTaskId, setSelectedTaskId, selectedListId } = useAppStore();
+  const { selectedTaskId, setSelectedTaskId, selectedListId, taskChecklistViews, setTaskChecklistView } = useAppStore();
   
-  // 拉伸宽度管理
-  const [width, setWidth] = useState(400); // 默认宽度
-  const [isResizing, setIsResizing] = useState(false);
-  const minWidth = 350; // 最小宽度安全区
-  const maxWidth = 800; // 最大宽度安全区
-
-  useEffect(() => {
-    const handleMouseMove = (e: MouseEvent) => {
-      if (!isResizing) return;
-      
-      const newWidth = window.innerWidth - e.clientX;
-      if (newWidth >= minWidth && newWidth <= maxWidth) {
-        setWidth(newWidth);
-      }
-    };
-
-    const handleMouseUp = () => {
-      setIsResizing(false);
-      document.body.classList.remove('is-resizing');
-    };
-
-    if (isResizing) {
-      document.addEventListener('mousemove', handleMouseMove);
-      document.addEventListener('mouseup', handleMouseUp);
-      document.body.classList.add('is-resizing');
-    }
-
-    return () => {
-      document.removeEventListener('mousemove', handleMouseMove);
-      document.removeEventListener('mouseup', handleMouseUp);
-    };
-  }, [isResizing]);
-
   const { showAlert } = useAlertStore();
   const queryClient = useQueryClient();
   const { data: task, isLoading } = useTask(selectedTaskId || '');
@@ -72,6 +41,10 @@ export default function TaskDetail() {
   const { data: allTags } = useTags();
   const createTag = useCreateTag();
   const { data: allLists } = useLists();
+  const convertDescription = useConvertDescriptionToSubtasks();
+  const convertingRef = useRef(false);
+  const titleBusyRef = useRef(false);
+  const [focusedSubtaskId, setFocusedSubtaskId] = useState<string | null>(null);
   const createSubtask = useCreateSubtaskSimple();
   const updateTaskOrders = useUpdateTaskOrders();
   const updateTask = useUpdateTask();
@@ -98,11 +71,35 @@ export default function TaskDetail() {
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [editTitleValue, setEditTitleValue] = useState('');
   const originalTitleRef = useRef('');
-  const titleInputRef = useRef<HTMLInputElement>(null);
+  const titleInputRef = useRef<HTMLTextAreaElement>(null);
+  useAutoGrowTextarea(titleInputRef, editTitleValue, isEditingTitle);
 
   const [isEditingDescription, setIsEditingDescription] = useState(false);
   const [descriptionValue, setDescriptionValue] = useState('');
   const [isSlashMenuOpen, setIsSlashMenuOpen] = useState(false);
+  const checklistView = selectedTaskId ? taskChecklistViews[selectedTaskId] ?? !!subtasks?.length : false;
+  const modeLabel = checklistView ? '详情' : '检查事项';
+  const [checklistText, setChecklistText] = useState('');
+  const [checklistDirty, setChecklistDirty] = useState(false);
+  const checklistInputRef = useRef<HTMLTextAreaElement>(null);
+  useEffect(() => {
+    setChecklistDirty(false);
+    setChecklistText('');
+  }, [selectedTaskId]);
+  useEffect(() => {
+    if (!checklistDirty) setChecklistText((subtasks || []).map(child => child.title).join('\n'));
+  }, [subtasks, checklistDirty]);
+  useEffect(() => {
+    const input = checklistInputRef.current;
+    if (input) {
+      input.style.height = 'auto';
+      const resize = () => { input.style.height = 'auto'; input.style.height = `${input.scrollHeight}px`; };
+      resize();
+      const observer = new ResizeObserver(resize);
+      observer.observe(input);
+      return () => observer.disconnect();
+    }
+  }, [checklistText, checklistView]);
   const descriptionInputRef = useRef<HTMLTextAreaElement>(null);
   const slashMenuRef = useRef<HTMLDivElement>(null);
 
@@ -131,14 +128,17 @@ export default function TaskDetail() {
   };
 
   useEffect(() => {
+    setIsEditingTitle(false);
+    setIsEditingDescription(false);
+    setIsSlashMenuOpen(false);
+    setNewTaskTitle('');
+    setFocusedSubtaskId(null);
+  }, [selectedTaskId]);
+
+  useEffect(() => {
     if (task && !isEditingTitle) {
       console.log('TaskDetail sync task title:', task.id, task.title);
       setEditTitleValue(task.title);
-      // 如果标题为空（如新创建的任务），自动进入编辑模式并聚焦
-      if (task.title === '' && !isTrashView) {
-        setIsEditingTitle(true);
-        originalTitleRef.current = '';
-      }
     }
   }, [task?.id, task?.title, isTrashView, isEditingTitle]);
 
@@ -148,12 +148,13 @@ export default function TaskDetail() {
       const timer = requestAnimationFrame(() => {
         if (titleInputRef.current) {
           titleInputRef.current.focus();
-          titleInputRef.current.select();
+          const end = titleInputRef.current.value.length;
+          titleInputRef.current.setSelectionRange(end, end);
         }
       });
       return () => cancelAnimationFrame(timer);
     }
-  }, [isEditingTitle]);
+  }, [isEditingTitle, task?.id]);
 
   const handleTitleStartEdit = () => {
     if (isTrashView) return;
@@ -184,18 +185,31 @@ export default function TaskDetail() {
     }
   };
 
-  const handleTitleSave = () => {
-    const trimmedTitle = editTitleValue.trim();
-    if (task && trimmedTitle !== originalTitleRef.current) {
-      console.log('TaskDetail saving title:', task.id, trimmedTitle, 'original:', originalTitleRef.current);
-      updateTask.mutate({
-        ...task,
-        title: trimmedTitle || '无标题任务' // 防止保存空标题
-      });
-      // 保存后更新 originalTitleRef，防止重复保存或逻辑错误
-      originalTitleRef.current = trimmedTitle || '无标题任务';
+  const handleTitleSave = async (): Promise<boolean> => {
+    if (!task || titleBusyRef.current) return false;
+    titleBusyRef.current = true;
+    try {
+      const trimmedTitle = editTitleValue.trim();
+      if (trimmedTitle !== originalTitleRef.current) {
+        await updateTask.mutateAsync({ ...task, title: trimmedTitle });
+        if (useAppStore.getState().selectedTaskId === task.id) originalTitleRef.current = trimmedTitle;
+      }
+      if (useAppStore.getState().selectedTaskId === task.id) setIsEditingTitle(false);
+      return true;
+    } catch { return false; /* Keep the title draft available when saving fails. */ }
+    finally { titleBusyRef.current = false; }
+  };
+
+  const handleTitleKey = async (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (!task || event.nativeEvent.isComposing || titleBusyRef.current) return;
+    if (event.key === 'Enter' && !event.shiftKey) {
+      event.preventDefault();
+      if (await handleTitleSave() && useAppStore.getState().selectedTaskId === task.id) {
+        const savedTask = queryClient.getQueryData<Task>(['task', task.id]);
+        setDescriptionValue(updateTask.isPending ? descriptionValue : savedTask?.description ?? task.description ?? '');
+        setIsEditingDescription(true);
+      }
     }
-    setIsEditingTitle(false);
   };
 
   const [isMoreMenuOpen, setIsMoreMenuOpen] = useState(false);
@@ -210,43 +224,81 @@ export default function TaskDetail() {
   useClickOutside([slashMenuRef], () => setIsSlashMenuOpen(false), isSlashMenuOpen);
 
   useEffect(() => {
-    if (task && !isEditingDescription) {
+    if (task && !isEditingDescription && !updateTask.isPending) {
       setDescriptionValue(task.description || '');
     }
-  }, [task?.description, isEditingDescription]);
+  }, [task?.description, isEditingDescription, updateTask.isPending]);
 
-useEffect(() => {
-  if (isEditingDescription) {
-    descriptionInputRef.current?.focus();
-  }
-}, [isEditingDescription]);
+  useEffect(() => {
+    const input = descriptionInputRef.current;
+    if (isEditingDescription && input) {
+      input.style.height = 'auto';
+      const resize = () => { input.style.height = 'auto'; input.style.height = `${input.scrollHeight}px`; };
+      resize();
+      const observer = new ResizeObserver(resize);
+      observer.observe(input);
+      return () => observer.disconnect();
+    }
+  }, [descriptionValue, isEditingDescription]);
 
-const handleDescriptionChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-  const newValue = e.target.value;
-  setDescriptionValue(newValue);
-  
-  // 检查是否输入了 /
-  if (newValue.endsWith('/')) {
-    setIsSlashMenuOpen(true);
-  } else if (isSlashMenuOpen) {
-    setIsSlashMenuOpen(false);
-  }
-};
+  useEffect(() => {
+    if (isEditingDescription && descriptionInputRef.current) {
+      const input = descriptionInputRef.current;
+      input.focus();
+      input.setSelectionRange(input.value.length, input.value.length);
+      input.scrollIntoView({ block: 'nearest' });
+    }
+  }, [isEditingDescription]);
 
-const handleDescriptionBlur = () => {
-    // 延迟关闭编辑模式，以便点击 Slash 菜单
-    setTimeout(() => {
-      // 如果 Slash 菜单还开着，不执行保存，因为菜单点击会处理
-      if (isSlashMenuOpen) return;
+  const handleDescriptionChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    setDescriptionValue(e.target.value);
+    setIsSlashMenuOpen(e.target.value.endsWith('/'));
+  };
 
-      if (task && descriptionValue !== (task.description || '')) {
-        updateTask.mutate({
-          ...task,
-          description: descriptionValue
-        });
-      }
+  const handleDescriptionBlur = () => {
+    if (isSlashMenuOpen || convertingRef.current) return;
+    if (task && descriptionValue !== (task.description || '')) {
+      updateTask.mutate({ ...task, description: descriptionValue });
+    }
+    setIsEditingDescription(false);
+  };
+
+  const handleConvertDescription = async () => {
+    if (!task || convertingRef.current) return;
+    const description = isEditingDescription ? descriptionValue : task.description;
+    if (checklistView) {
+      setTaskChecklistView(task.id, false);
+      requestAnimationFrame(() => checklistInputRef.current?.focus());
+      return;
+    }
+    // Only the initial text-to-checklist conversion consumes the description.
+    // Once a checklist exists, description and checklist text are independent fields.
+    const initialConversion = !subtasks?.length && taskChecklistViews[task.id] === undefined;
+    convertingRef.current = true;
+    try {
+      await convertDescription.mutateAsync({
+        id: task.id,
+        description: initialConversion ? description : '',
+        checklistText: checklistDirty ? checklistText : undefined,
+        detailDescription: !initialConversion && isEditingDescription ? description : undefined,
+      });
+      setChecklistDirty(false);
+      setTaskChecklistView(task.id, true);
+      setDescriptionValue(initialConversion ? '' : description);
       setIsEditingDescription(false);
-    }, 200);
+      setIsSlashMenuOpen(false);
+    } catch { /* Keep the original draft when persistence fails. */ }
+    finally { convertingRef.current = false; }
+  };
+
+  const handleChecklistTextBlur = async () => {
+    if (!task || !checklistDirty || convertingRef.current) return;
+    convertingRef.current = true;
+    try {
+      await convertDescription.mutateAsync({ id: task.id, description: '', checklistText });
+      setChecklistDirty(false);
+    } catch { /* Keep the draft available if the atomic save fails. */ }
+    finally { convertingRef.current = false; }
   };
 
   const handleSlashItemClick = (label: string) => {
@@ -287,7 +339,7 @@ const handleDescriptionBlur = () => {
     if (subtasks) {
       // 过滤掉已删除的子任务
       const filteredSubtasks = subtasks.filter(t => !t.is_deleted);
-      setLocalSubtasks(filteredSubtasks);
+      setLocalSubtasks(sortSubtasks(filteredSubtasks));
     }
   }, [subtasks, selectedTaskId]);
 
@@ -306,7 +358,8 @@ const handleDescriptionBlur = () => {
     const oldIndex = localSubtasks.findIndex((t) => t.id === active.id);
     const newIndex = localSubtasks.findIndex((t) => t.id === over.id);
 
-    const newSubtasks = arrayMove(localSubtasks, oldIndex, newIndex);
+    if (oldIndex < 0 || newIndex < 0 || localSubtasks[oldIndex].completed || localSubtasks[newIndex].completed) return;
+    const newSubtasks = sortSubtasks(arrayMove(localSubtasks, oldIndex, newIndex));
     setLocalSubtasks(newSubtasks);
 
     const ascendingOrders: [string, number][] = newSubtasks.map((t, index) => [
@@ -431,15 +484,9 @@ const handleDescriptionBlur = () => {
 
   if (!selectedTaskId) {
     return (
-      <div 
-        style={{ width: `${width}px` }}
-        className="border-l border-gray-200 bg-white flex items-center justify-center relative flex-shrink-0"
+      <div
+        className="border-l border-gray-200 bg-white flex items-center justify-center relative min-w-0 w-full h-full"
       >
-        {/* 左侧拉伸条 */}
-        <div
-          onMouseDown={() => setIsResizing(true)}
-          className="absolute left-0 top-0 w-1 h-full cursor-col-resize hover:bg-blue-400/30 transition-colors z-50"
-        />
         <div className="text-center text-gray-400">
           <div className="text-4xl mb-2">📋</div>
           <div className="text-sm">选择一个任务查看详情</div>
@@ -450,15 +497,9 @@ const handleDescriptionBlur = () => {
 
   if (isLoading) {
     return (
-      <div 
-        style={{ width: `${width}px` }}
-        className="border-l border-gray-200 bg-white flex items-center justify-center relative flex-shrink-0"
+      <div
+        className="border-l border-gray-200 bg-white flex items-center justify-center relative min-w-0 w-full h-full"
       >
-        {/* 左侧拉伸条 */}
-        <div
-          onMouseDown={() => setIsResizing(true)}
-          className="absolute left-0 top-0 w-1 h-full cursor-col-resize hover:bg-blue-400/30 transition-colors z-50"
-        />
         <div className="text-gray-500">加载中...</div>
       </div>
     );
@@ -467,15 +508,9 @@ const handleDescriptionBlur = () => {
   if (!task) return null;
 
   return (
-    <div 
-      style={{ width: `${width}px` }}
-      className="border-l border-gray-200 bg-white flex flex-col relative flex-shrink-0 select-none"
+    <div
+      className="border-l border-gray-200 bg-white flex flex-col relative min-w-0 w-full h-full select-none"
     >
-      {/* 左侧拉伸条 */}
-      <div
-        onMouseDown={() => setIsResizing(true)}
-        className="absolute left-0 top-0 w-1 h-full cursor-col-resize hover:bg-blue-400/30 transition-colors z-50"
-      />
       {/* 头部 */}
       <div className="flex items-center justify-between p-2 border-b border-gray-100 h-12">
         <div className="flex items-center gap-2">
@@ -498,6 +533,7 @@ const handleDescriptionBlur = () => {
             <button
               ref={dateTriggerRef}
               type="button"
+              aria-label="设置任务日期"
               onClick={() => setIsDatePickerOpen(!isDatePickerOpen)}
               className="flex items-center gap-1.5 px-2 py-1 hover:bg-gray-100 rounded-md cursor-pointer transition-colors"
             >
@@ -526,6 +562,7 @@ const handleDescriptionBlur = () => {
                   reminder={task.reminder || 'none'}
                   repeat_rule={task.repeat_rule}
                   onSelect={handleDateChange}
+                  onCancel={() => setIsDatePickerOpen(false)}
                 />
               </div>
             )}
@@ -664,6 +701,7 @@ const handleDescriptionBlur = () => {
           <button
             onClick={() => setSelectedTaskId(null)}
             type="button"
+            aria-label="关闭任务详情"
             className="p-1.5 hover:bg-gray-100 rounded-md transition-colors"
           >
             <X className="w-4 h-4 text-gray-400" />
@@ -671,31 +709,44 @@ const handleDescriptionBlur = () => {
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto px-6 py-4 space-y-6">
+      <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4">
         {/* 标题 */}
-        <div className="space-y-3">
+        <div className="flex items-start gap-3">
           <div className="flex-1 min-w-0">
             {isEditingTitle && !isTrashView ? (
-              <input
+              <textarea
                 ref={titleInputRef}
-                type="text"
+                rows={1}
+                aria-label="主任务标题"
+                data-task-id={task.id}
                 value={editTitleValue}
                 onChange={(e) => handleTitleChange(e.target.value)}
                 onBlur={handleTitleSave}
-                onKeyDown={(e) => e.key === 'Enter' && handleTitleSave()}
-                className="w-full text-[18px] font-bold text-gray-800 leading-snug outline-none bg-transparent"
+                onKeyDown={handleTitleKey}
+                readOnly={updateTask.isPending}
+                placeholder="无标题"
+                className="dida-title-editor block w-full resize-none overflow-hidden whitespace-pre-wrap [overflow-wrap:anywhere] text-[18px] font-bold text-gray-800 leading-snug outline-none bg-transparent"
               />
             ) : (
               <h3
                 onClick={handleTitleStartEdit}
-                className={`text-[18px] font-bold text-gray-800 leading-snug break-words ${isTrashView ? 'text-gray-400 cursor-default' : 'cursor-text hover:bg-gray-50 -mx-1 px-1 rounded transition-colors'
+                className={`text-[18px] font-bold text-gray-800 leading-snug whitespace-pre-wrap [overflow-wrap:anywhere] ${isTrashView ? 'text-gray-400 cursor-default' : 'cursor-text hover:bg-gray-50 -mx-1 px-1 rounded transition-colors'
                   } ${task.completed ? 'text-gray-400' : ''}`}
                 title={isTrashView ? '' : "点击修改标题"}
               >
-                {task.title || (isEditingTitle ? '' : '无标题任务')}
+                {task.title || '无标题'}
               </h3>
             )}
           </div>
+          {!isTrashView && (
+            <button type="button" aria-label={modeLabel} title={modeLabel}
+              onMouseDown={e => e.preventDefault()}
+              onClick={handleConvertDescription} disabled={convertDescription.isPending}
+              className="group/checklist relative p-1 rounded-md text-gray-400 hover:bg-gray-100 hover:shadow-md focus-visible:shadow-md transition-shadow disabled:opacity-40">
+              {checklistView ? <AlignLeft className="w-4 h-4" /> : <ListTodo className="w-4 h-4" />}
+              <span className="pointer-events-none absolute right-0 top-full mt-1 whitespace-nowrap rounded bg-gray-800 px-2 py-1 text-xs text-white opacity-0 group-hover/checklist:opacity-100 group-focus-visible/checklist:opacity-100 z-20">{modeLabel}</span>
+            </button>
+          )}
         </div>
 
         {/* 垃圾桶视图下的操作按钮 */}
@@ -719,14 +770,10 @@ const handleDescriptionBlur = () => {
         )}
 
         {/* 描述区域 */}
-        <div className="space-y-2 relative">
-          <div className="flex items-center gap-2 text-[12px] font-bold text-gray-400 uppercase tracking-tighter">
-            <AlignLeft className="w-3.5 h-3.5" />
-            <span>描述</span>
-          </div>
+        <div className={`space-y-2 relative ${!checklistView && subtasks?.length && !task.description && !isEditingDescription ? 'hidden' : ''}`}>
           <div 
-            className={`min-h-[60px] p-2 -mx-2 hover:bg-gray-50 rounded-md transition-colors cursor-text group ${isEditingDescription ? 'bg-white' : ''}`}
-            onClick={() => setIsEditingDescription(true)}
+            className={`min-h-[28px] p-2 -mx-2 hover:bg-gray-50 rounded-md transition-colors cursor-text group ${isEditingDescription ? 'bg-white' : ''}`}
+            onClick={() => { if (!isTrashView) setIsEditingDescription(true); }}
           >
             {isEditingDescription ? (
               <textarea
@@ -735,7 +782,7 @@ const handleDescriptionBlur = () => {
                 onChange={handleDescriptionChange}
                 onBlur={handleDescriptionBlur}
                 placeholder="输入内容或使用 / 快速插入"
-                className="w-full min-h-[100px] bg-transparent outline-none text-[13px] text-gray-700 leading-relaxed resize-none placeholder:text-gray-300"
+                className="w-full min-h-[28px] overflow-hidden bg-transparent outline-none text-[13px] text-gray-700 leading-relaxed resize-none placeholder:text-gray-300"
               />
             ) : task.description ? (
               <p className="text-[13px] text-gray-700 leading-relaxed whitespace-pre-wrap">{task.description}</p>
@@ -773,7 +820,56 @@ const handleDescriptionBlur = () => {
           )}
         </div>
 
-        {/* 标签展示区 - 移动到描述下方 */}
+        {/* 子任务区域；文本模式下与独立描述之间留一行间距。 */}
+        <div className={`space-y-2 ${!checklistView && (task.description || isEditingDescription) && subtasks?.length ? 'pt-1' : ''}`}>
+          {!checklistView && (!!subtasks?.length || checklistDirty) ? (
+            <textarea ref={checklistInputRef} aria-label="任务详情" value={checklistText}
+              readOnly={isTrashView || convertDescription.isPending}
+              onChange={event => { setChecklistText(event.target.value); setChecklistDirty(true); }}
+              onBlur={handleChecklistTextBlur}
+              className="block w-full min-h-[28px] overflow-hidden resize-none bg-transparent text-[13px] text-gray-700 leading-relaxed outline-none"
+            />
+          ) : <>
+          <DndContext
+            sensors={sensors}
+            collisionDetection={closestCenter}
+            onDragEnd={handleDragEnd}
+            modifiers={[restrictToVerticalAxis]}
+          >
+            <SortableContext items={localSubtasks.map(t => t.id)} strategy={verticalListSortingStrategy}>
+              <div className="space-y-0.5">
+                {localSubtasks.map((subtask) => (
+                  <SubtaskItem key={subtask.id} subtask={subtask} readOnly={isTrashView}
+                    autoFocus={focusedSubtaskId === subtask.id}
+                    onCreated={next => {
+                      setLocalSubtasks(current => {
+                        const rows = current.filter(child => child.id !== next.id);
+                        const index = rows.findIndex(child => child.id === subtask.id);
+                        rows.splice(index + 1, 0, next);
+                        return rows;
+                      });
+                      setFocusedSubtaskId(next.id);
+                    }} />
+                ))}
+              </div>
+            </SortableContext>
+          </DndContext>
+
+          {!isTrashView && (
+            <form onSubmit={handleAddSubtask} className="flex items-center gap-2 py-1 px-2 group">
+              <Plus className="w-4 h-4 text-gray-300 group-hover:text-[var(--dida-primary)] transition-colors" />
+              <input
+                type="text"
+                value={newSubtaskTitle}
+                onChange={(e) => setNewTaskTitle(e.target.value)}
+                placeholder="添加子任务..."
+                className="flex-1 bg-transparent outline-none text-[13px] text-gray-700 placeholder:text-gray-300"
+              />
+            </form>
+          )}
+          </>}
+        </div>
+        {/* 标签展示区 - 位于子任务下方 */}
         <div className="space-y-3">
           <div className="flex items-center gap-2 text-[12px] font-bold text-gray-400 uppercase tracking-tighter">
             <Hash className="w-3.5 h-3.5" />
@@ -882,44 +978,7 @@ const handleDescriptionBlur = () => {
           </div>
         </div>
 
-        {/* 分割线 */}
-        <div className="h-[1px] bg-gray-100 -mx-6" />
 
-        {/* 子任务区域 */}
-        <div className="space-y-2">
-          <div className="flex items-center gap-2 text-[12px] font-bold text-gray-400 uppercase tracking-tighter">
-            <ListTodo className="w-3.5 h-3.5" />
-            <span>子任务 {localSubtasks.length ? `(${localSubtasks.length})` : ''}</span>
-          </div>
-
-          <DndContext
-            sensors={sensors}
-            collisionDetection={closestCenter}
-            onDragEnd={handleDragEnd}
-            modifiers={[restrictToVerticalAxis]}
-          >
-            <SortableContext items={localSubtasks.map(t => t.id)} strategy={verticalListSortingStrategy}>
-              <div className="space-y-0.5">
-                {localSubtasks.map((subtask) => (
-                  <SubtaskItem key={subtask.id} subtask={subtask} />
-                ))}
-              </div>
-            </SortableContext>
-          </DndContext>
-
-          {!isTrashView && (
-            <form onSubmit={handleAddSubtask} className="flex items-center gap-2 py-1 px-2 group">
-              <Plus className="w-4 h-4 text-gray-300 group-hover:text-[var(--dida-primary)] transition-colors" />
-              <input
-                type="text"
-                value={newSubtaskTitle}
-                onChange={(e) => setNewTaskTitle(e.target.value)}
-                placeholder="添加子任务..."
-                className="flex-1 bg-transparent outline-none text-[13px] text-gray-700 placeholder:text-gray-300"
-              />
-            </form>
-          )}
-        </div>
       </div>
 
       {/* 底部工具栏 */}

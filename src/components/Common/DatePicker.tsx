@@ -1,741 +1,137 @@
-import { useState, useRef, useEffect } from 'react';
-import {
-    startOfMonth,
-    endOfMonth,
-    eachDayOfInterval,
-    format,
-    isSameDay,
-    isToday,
-    addMonths,
-    subMonths,
-    startOfWeek,
-    endOfWeek,
-} from 'date-fns';
-import { zhCN } from 'date-fns/locale';
-import { 
-    ChevronLeft, 
-    ChevronRight, 
-    Sun, 
-    CalendarRange, 
-    CalendarDays, 
-    Moon,
-    Clock,
-    Bell,
-    RefreshCw,
-    Circle,
-    Check,
-    X
-} from 'lucide-react';
-
-import { useClickOutside } from '../../hooks/useClickOutside';
+import { useEffect, useRef, useState } from 'react';
+import { startOfMonth, endOfMonth, eachDayOfInterval, format, isSameDay, isToday, addMonths, startOfWeek, endOfWeek } from 'date-fns';
+import { ChevronLeft, ChevronRight, Clock, Bell, RefreshCw, X, Circle } from 'lucide-react';
+import type { RepeatRule } from '../../types/task';
+import { RepeatType } from '../../types/task';
 import { REMINDER_OPTIONS } from '../../constants/reminders';
-import { RepeatType, RepeatRule } from '../../types/task';
-import { REPEAT_OPTIONS, REPEAT_TYPE_LABELS } from '../../constants/repeats';
+import { normalizeRepeat, repeatLabel, localTimeZone } from '../../utils/recurrence';
+import DateShortcuts from './DateShortcuts';
 
 interface DatePickerProps {
-    selectedDate?: number; // Unix timestamp
-    reminder?: string; // 提醒设置，如 "none", "on_time", "5m_before", etc.
-    repeat_rule?: RepeatRule | null;
-    onSelect: (timestamp: number | undefined, reminder?: string, repeat_rule?: RepeatRule | null) => void;
+  selectedDate?: number;
+  reminder?: string;
+  repeat_rule?: RepeatRule | null;
+  onSelect: (timestamp: number | undefined, reminder?: string, repeat_rule?: RepeatRule | null) => void;
+  onCancel?: () => void;
 }
+const repeatTypes = [RepeatType.None, RepeatType.Daily, RepeatType.Weekly, RepeatType.Monthly, RepeatType.Quarterly, RepeatType.Yearly, RepeatType.Weekday, RepeatType.Custom];
+const dateOnly = (timestamp?: number) => timestamp ? new Date(timestamp * 1000) : new Date();
+const timeOnly = (timestamp?: number) => timestamp && format(new Date(timestamp * 1000), 'HH:mm') !== '00:00' ? format(new Date(timestamp * 1000), 'HH:mm') : '';
 
-export default function DatePicker({ selectedDate, reminder: initialReminder, repeat_rule: initialRepeat, onSelect }: DatePickerProps) {
-    const [viewDate, setViewDate] = useState(
-        selectedDate ? new Date(selectedDate * 1000) : new Date()
-    );
-    const [selectedTime, setSelectedTime] = useState(() => {
-        if (selectedDate) {
-            const date = new Date(selectedDate * 1000);
-            return { hour: date.getHours(), minute: date.getMinutes() };
-        }
-        return { hour: 21, minute: 0 }; // 默认初始值为 21:00
-    });
-    const [tempSelectedDate, setTempSelectedDate] = useState<Date>(
-        selectedDate ? new Date(selectedDate * 1000) : new Date()
-    );
-    const [activeTab, setActiveTab] = useState<'date' | 'range'>('date');
-    const [isTimeSet, setIsTimeSet] = useState(!!selectedDate);
-    const [showTimeList, setShowTimeList] = useState(false);
-    const [showReminderList, setShowReminderList] = useState(false);
-    const [showRepeatList, setShowRepeatList] = useState(false);
-    const [showCustomRepeat, setShowCustomRepeat] = useState(false);
-    const [selectedReminder, setSelectedReminder] = useState(initialReminder || 'none');
+export default function DatePicker({ selectedDate, reminder: initialReminder, repeat_rule: initialRepeat, onSelect, onCancel }: DatePickerProps) {
+  const calendarRef = useRef<HTMLDivElement>(null);
+  const [date, setDate] = useState(() => dateOnly(selectedDate));
+  const [month, setMonth] = useState(() => dateOnly(selectedDate));
+  const [time, setTime] = useState(() => timeOnly(selectedDate));
+  const [reminder, setReminder] = useState(initialReminder || 'none');
+  const [repeat, setRepeat] = useState<RepeatRule | null>(initialRepeat || null);
+  const [expanded, setExpanded] = useState<'time' | 'reminder' | 'repeat' | null>(null);
+  const [custom, setCustom] = useState(false);
+  const [frequency, setFrequency] = useState<NonNullable<RepeatRule['frequency']>>(initialRepeat?.frequency || 'daily');
+  const [interval, setIntervalValue] = useState(initialRepeat?.interval || 1);
+  const [weekdays, setWeekdays] = useState<number[]>(initialRepeat?.daysOfWeek || [dateOnly(selectedDate).getDay()]);
+  const [error, setError] = useState('');
 
-    // 同步外部属性到内部状态
-    useEffect(() => {
-        setSelectedReminder(initialReminder || 'none');
-    }, [initialReminder]);
+  useEffect(() => {
+    setDate(dateOnly(selectedDate)); setMonth(dateOnly(selectedDate)); setTime(timeOnly(selectedDate));
+    setReminder(initialReminder || 'none'); setRepeat(initialRepeat || null);
+    setFrequency(initialRepeat?.frequency || 'daily'); setIntervalValue(initialRepeat?.interval || 1);
+    setWeekdays(initialRepeat?.daysOfWeek || [dateOnly(selectedDate).getDay()]); setError('');
+  }, [selectedDate, initialReminder, initialRepeat]);
 
-    useEffect(() => {
-        if (selectedDate) {
-            const date = new Date(selectedDate * 1000);
-            setTempSelectedDate(date);
-            setViewDate(date);
-            setIsTimeSet(true);
-            setSelectedTime({ hour: date.getHours(), minute: date.getMinutes() });
-        } else {
-            setTempSelectedDate(new Date());
-            setIsTimeSet(false);
-        }
-    }, [selectedDate]);
-
-    const [selectedRepeat, setSelectedRepeat] = useState<RepeatRule>(initialRepeat || { type: RepeatType.None });
-
-    // 当 initialRepeat 改变时（例如点击不同的任务），更新内部状态
-    useEffect(() => {
-        setSelectedRepeat(initialRepeat || { type: RepeatType.None });
-    }, [initialRepeat]);
-
-    // 自定义重复设置
-    const [customRepeatType, setCustomRepeatType] = useState<RepeatType>(RepeatType.Daily);
-    const [customInterval, setCustomInterval] = useState(1);
-    const [customDaysOfWeek, setCustomDaysOfWeek] = useState<number[]>([]);
-    
-    const hourInputRef = useRef<HTMLInputElement>(null);
-    const minuteInputRef = useRef<HTMLInputElement>(null);
-    const timeListRef = useRef<HTMLDivElement>(null);
-    const reminderListRef = useRef<HTMLDivElement>(null);
-    const repeatListRef = useRef<HTMLDivElement>(null);
-    const customRepeatRef = useRef<HTMLDivElement>(null);
-
-    // 点击外部隐藏列表
-    useClickOutside([timeListRef, hourInputRef, minuteInputRef], () => setShowTimeList(false), showTimeList);
-    useClickOutside([reminderListRef], () => setShowReminderList(false), showReminderList);
-    useClickOutside([repeatListRef], () => setShowRepeatList(false), showRepeatList);
-    useClickOutside([customRepeatRef], () => setShowCustomRepeat(false), showCustomRepeat);
-
-    // 弹窗打开时，自动滚动到选中项
-    useEffect(() => {
-        if (showTimeList && timeListRef.current) {
-            const selectedItem = timeListRef.current.querySelector('[data-selected="true"]');
-            if (selectedItem) {
-                selectedItem.scrollIntoView({ block: 'center', behavior: 'auto' });
-            }
-        }
-    }, [showTimeList]);
-
-    // 当设置时间显示时，自动聚焦到小时输入框
-    useEffect(() => {
-        if (isTimeSet) {
-            // 使用 setTimeout 确保输入框已渲染并可见
-            const timer = setTimeout(() => {
-                if (hourInputRef.current) {
-                    hourInputRef.current.focus();
-                    hourInputRef.current.select();
-                }
-            }, 50);
-            return () => clearTimeout(timer);
-        }
-    }, [isTimeSet]);
-
-    // 快捷选项
-    const quickOptions = [
-        { label: '今天', icon: Sun, days: 0 },
-        { label: '明天', icon: CalendarRange, days: 1 },
-        { label: '下周', icon: CalendarDays, days: 7 },
-        { label: '晚上', icon: Moon, days: 0, time: { hour: 21, minute: 0 } },
-    ];
-
-    const handleQuickSelect = (days: number, time?: { hour: number, minute: number }) => {
-        const date = new Date();
-        date.setDate(date.getDate() + days);
-        const finalTime = time || selectedTime;
-        date.setHours(finalTime.hour, finalTime.minute, 0, 0);
-        if (time) {
-            setSelectedTime(time);
-            setIsTimeSet(true);
-            // 点击设置时间时，如果当前没有提醒，默认设为“准时”
-            if (selectedReminder === 'none') {
-                setSelectedReminder('on_time');
-            }
-        }
-        onSelect(Math.floor(date.getTime() / 1000), selectedReminder, selectedRepeat.type === RepeatType.None ? null : selectedRepeat);
-    };
-
-    // 生成时间列表 (30分钟间隔)
-    const timeOptions = Array.from({ length: 48 }, (_, i) => {
-        const hour = Math.floor(i / 2);
-        const minute = i % 2 === 0 ? 0 : 30;
-        return { hour, minute };
-    });
-
-    const handleTimeSelect = (hour: number, minute: number) => {
-        setSelectedTime({ hour, minute });
-        setIsTimeSet(true);
-        // 点击选择时间时，如果当前没有提醒，默认设为“准时”
-        if (selectedReminder === 'none') {
-            setSelectedReminder('on_time');
-        }
-        setShowTimeList(false);
-    };
-
-    const handleHourChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        let val = e.target.value.replace(/\D/g, '');
-        if (val.length > 2) val = val.slice(-2);
-        const num = parseInt(val);
-        
-        if (val.length === 2) {
-            const hour = Math.min(Math.max(num, 0), 23);
-            setSelectedTime(prev => ({ ...prev, hour }));
-            setIsTimeSet(true);
-            // 设置时间时，如果当前没有提醒，默认设为“准时”
-            if (selectedReminder === 'none') {
-                setSelectedReminder('on_time');
-            }
-            minuteInputRef.current?.focus();
-            minuteInputRef.current?.select();
-        } else {
-            // 允许输入 1 位数
-            setSelectedTime(prev => ({ ...prev, hour: num || 0 }));
-            setIsTimeSet(true);
-            if (selectedReminder === 'none') {
-                setSelectedReminder('on_time');
-            }
-        }
-    };
-
-    const handleMinuteChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        let val = e.target.value.replace(/\D/g, '');
-        if (val.length > 2) val = val.slice(-2);
-        const num = parseInt(val);
-
-        if (val.length === 2) {
-            const minute = Math.min(Math.max(num, 0), 59);
-            setSelectedTime(prev => ({ ...prev, minute }));
-            setIsTimeSet(true);
-            // 设置时间时，如果当前没有提醒，默认设为“准时”
-            if (selectedReminder === 'none') {
-                setSelectedReminder('on_time');
-            }
-            hourInputRef.current?.focus();
-            hourInputRef.current?.select();
-        } else {
-            // 允许输入 1 位数
-            setSelectedTime(prev => ({ ...prev, minute: num || 0 }));
-            setIsTimeSet(true);
-            if (selectedReminder === 'none') {
-                setSelectedReminder('on_time');
-            }
-        }
-    };
-
-    // 获取当月的所有日期（包含前后月份的部分日期以填充网格）
-    const monthStart = startOfMonth(viewDate);
-    const monthEnd = endOfMonth(viewDate);
-    const calendarStart = startOfWeek(monthStart, { weekStartsOn: 0 }); // 周日开始
-    const calendarEnd = endOfWeek(monthEnd, { weekStartsOn: 0 });
-    const calendarDays = eachDayOfInterval({ start: calendarStart, end: calendarEnd });
-
-    const handleDateClick = (date: Date) => {
-        setTempSelectedDate(date);
-    };
-
-    const handleRepeatSelect = (type: RepeatType) => {
-        if (type === RepeatType.Custom) {
-            setShowCustomRepeat(true);
-            setShowRepeatList(false);
-            return;
-        }
-        setSelectedRepeat({ type });
-        setShowRepeatList(false);
-    };
-
-    const handleCustomConfirm = () => {
-        setSelectedRepeat({
-            type: RepeatType.Custom,
-            interval: customInterval,
-            daysOfWeek: customRepeatType === RepeatType.Weekly ? customDaysOfWeek : undefined,
-            // 简单处理：如果是每天/每月/每年，则根据 customRepeatType 设置
-            // 注意：RepeatType.Custom 实际上是一个包装，真正的类型由 customRepeatType 决定
-            // 但滴答清单的逻辑通常是：RepeatType 存的是用户感知的类型
+  const timestamp = () => {
+    const result = new Date(date);
+    const [hours, minutes] = (time || '00:00').split(':').map(Number);
+    result.setHours(hours, minutes, 0, 0);
+    return Math.floor(result.getTime() / 1000);
+  };
+  const selectDay = (next: Date) => {
+    setDate(next); setError('');
+    if (repeat) setRepeat({ ...repeat, dayOfMonth: next.getDate(), monthOfYear: next.getMonth() + 1,
+      daysOfWeek: repeat.type === RepeatType.Custom && repeat.frequency === 'weekly' ? repeat.daysOfWeek : [next.getDay()] });
+  };
+  const toggle = (section: typeof expanded) => { setCustom(false); setExpanded(expanded === section ? null : section); setError(''); };
+  const preset = (type: RepeatType) => {
+    if (type === RepeatType.Custom) {
+      const currentFrequency = repeat?.type === RepeatType.Custom ? repeat.frequency : repeat?.type;
+      setFrequency(currentFrequency && ['daily', 'weekly', 'monthly', 'yearly'].includes(currentFrequency) ? currentFrequency as typeof frequency : 'daily');
+      setIntervalValue(repeat?.interval || 1); setWeekdays(repeat?.daysOfWeek || [date.getDay()]);
+      setCustom(true); setExpanded(null); setError(''); return;
+    }
+    setRepeat(type === RepeatType.None ? null : { type: type === RepeatType.Quarterly ? RepeatType.Monthly : type, interval: type === RepeatType.Quarterly ? 3 : 1, daysOfWeek: [date.getDay()], dayOfMonth: date.getDate(), monthOfYear: date.getMonth() + 1, timezone: localTimeZone() });
+    setExpanded(null); setError('');
+  };
+  const applyCustom = () => {
+    try {
+      const rule = normalizeRepeat({ type: RepeatType.Custom, frequency, interval, daysOfWeek: frequency === 'weekly' ? weekdays : [date.getDay()],
+        dayOfMonth: date.getDate(), monthOfYear: date.getMonth() + 1, timezone: localTimeZone() }, timestamp());
+      setRepeat(rule); setCustom(false); setError('');
+    } catch (cause) { setError(cause instanceof Error ? cause.message : String(cause)); }
+  };
+  const confirm = () => {
+    try {
+      const due = timestamp();
+      if (!Number.isFinite(due)) throw new Error('请选择有效日期和时间');
+      onSelect(due, reminder, repeat ? normalizeRepeat({ ...repeat, timeOfDay: `${time || '00:00'}:00`, timezone: localTimeZone() }, due) : null);
+    } catch (cause) { setError(cause instanceof Error ? cause.message : String(cause)); }
+  };
+  const days = eachDayOfInterval({ start: startOfWeek(startOfMonth(month)), end: endOfWeek(endOfMonth(month)) });
+  const rowClass = 'w-full flex items-center justify-between gap-2 px-3 py-2 text-[13px] text-gray-600 hover:bg-gray-50 rounded-lg';
+  return <div role="dialog" aria-label="日期设置" className="date-picker-container w-[280px] max-w-[calc(100vw-16px)] max-h-[calc(100dvh-16px)] overflow-y-auto bg-white rounded-xl border border-gray-100 shadow-xl p-2"
+    onKeyDown={event => {
+      if (event.key === 'Escape') {
+        event.stopPropagation();
+        if (custom) setCustom(false); else if (expanded) setExpanded(null); else onCancel?.();
+      }
+    }}>
+    <div className="rounded-lg bg-gray-50 p-1 text-center text-xs text-gray-600 mb-2">日期</div>
+    <DateShortcuts onSelect={days => {
+      if (days === undefined) {
+        setMonth(date); setExpanded(null); setCustom(false); setError('');
+        requestAnimationFrame(() => {
+          const selected = calendarRef.current?.querySelector<HTMLButtonElement>('[aria-pressed="true"]');
+          selected?.focus(); selected?.scrollIntoView({ block: 'nearest' });
         });
-        setShowCustomRepeat(false);
-    };
-
-    const toggleDayOfWeek = (day: number) => {
-        setCustomDaysOfWeek(prev => 
-            prev.includes(day) ? prev.filter(d => d !== day) : [...prev, day].sort()
-        );
-    };
-
-    const handleConfirm = () => {
-        const finalDate = new Date(tempSelectedDate);
-        if (isTimeSet) {
-            finalDate.setHours(selectedTime.hour, selectedTime.minute, 0, 0);
-        } else {
-            // 如果没设置时间，默认 00:00:00，后端或前端列表展示会根据是否有时间位来判断
-            finalDate.setHours(0, 0, 0, 0);
-        }
-        onSelect(Math.floor(finalDate.getTime() / 1000), selectedReminder, selectedRepeat.type === RepeatType.None ? null : selectedRepeat);
-    };
-
-    const handleClear = () => {
-        onSelect(undefined, 'none', null);
-    };
-
-    const reminderOptions = REMINDER_OPTIONS;
-
-    const weekDays = ['日', '一', '二', '三', '四', '五', '六'];
-
-    return (
-        <div 
-            className="w-[280px] bg-white shadow-[0_10px_40px_rgba(0,0,0,0.3)] rounded-xl border border-[var(--dida-border-light)] overflow-hidden flex flex-col animate-in zoom-in-95 duration-75 date-picker-container isolation-isolate opacity-100"
-            style={{ 
-                backfaceVisibility: 'hidden',
-                WebkitBackfaceVisibility: 'hidden',
-                transform: 'translateZ(0)',
-                WebkitTransform: 'translateZ(0)',
-                backgroundColor: '#ffffff' // 显式确保背景不透明
-            }}
-        >
-            {/* Tab 切换 */}
-            <div className="flex p-1 bg-[var(--dida-sidebar)] border-b border-[var(--dida-border-light)]">
-                <button
-                    type="button"
-                    onClick={() => setActiveTab('date')}
-                    className={`flex-1 py-1.5 text-xs font-medium rounded-md transition-all ${
-                        activeTab === 'date' ? 'bg-white text-[var(--dida-text-primary)] shadow-sm' : 'text-[var(--dida-text-tertiary)] hover:text-[var(--dida-text-secondary)]'
-                    }`}
-                >
-                    日期
-                </button>
-                <button
-                    type="button"
-                    onClick={() => setActiveTab('range')}
-                    className={`flex-1 py-1.5 text-xs font-medium rounded-md transition-all ${
-                        activeTab === 'range' ? 'bg-white text-[var(--dida-text-primary)] shadow-sm' : 'text-[var(--dida-text-tertiary)] hover:text-[var(--dida-text-secondary)]'
-                    }`}
-                >
-                    时间段
-                </button>
-            </div>
-
-            {/* 快捷图标栏 */}
-            <div className="flex justify-around py-3 px-2 border-b border-[var(--dida-bg-hover)]">
-                {quickOptions.map((option) => (
-                    <button
-                        key={option.label}
-                        type="button"
-                        onClick={() => handleQuickSelect(option.days, option.time)}
-                        className="group flex flex-col items-center gap-1.5"
-                        title={option.label}
-                    >
-                        <div className="p-2 rounded-full group-hover:bg-[var(--dida-bg-hover)] transition-colors text-[var(--dida-text-tertiary)] group-hover:text-[var(--dida-primary)]">
-                            <option.icon className="w-5 h-5" />
-                        </div>
-                    </button>
-                ))}
-            </div>
-
-            {/* 月历视图 */}
-            <div className="p-4">
-                {/* 月份标题和切换 */}
-                <div className="flex items-center justify-between mb-4 px-1">
-                    <div className="text-[13px] font-bold text-[var(--dida-text-primary)]">
-                        {format(viewDate, 'yyyy年M月', { locale: zhCN })}
-                    </div>
-                    <div className="flex gap-1">
-                        <button
-                            type="button"
-                            onClick={() => setViewDate(subMonths(viewDate, 1))}
-                            className="p-1 hover:bg-[var(--dida-bg-hover)] rounded-md transition-colors text-[var(--dida-text-tertiary)] hover:text-[var(--dida-text-secondary)]"
-                        >
-                            <ChevronLeft className="w-4 h-4" />
-                        </button>
-                        <button
-                            type="button"
-                            onClick={() => setViewDate(new Date())}
-                            className="p-1 hover:bg-[var(--dida-bg-hover)] rounded-md transition-colors"
-                        >
-                            <Circle className="w-2 h-2 fill-[var(--dida-text-tertiary)] text-[var(--dida-text-tertiary)] opacity-30" />
-                        </button>
-                        <button
-                            type="button"
-                            onClick={() => setViewDate(addMonths(viewDate, 1))}
-                            className="p-1 hover:bg-[var(--dida-bg-hover)] rounded-md transition-colors text-[var(--dida-text-tertiary)] hover:text-[var(--dida-text-secondary)]"
-                        >
-                            <ChevronRight className="w-4 h-4" />
-                        </button>
-                    </div>
-                </div>
-
-                {/* 星期标题 */}
-                <div className="grid grid-cols-7 gap-1 mb-2">
-                    {weekDays.map((day) => (
-                        <div key={day} className="text-center text-[10px] text-[var(--dida-text-tertiary)] font-bold uppercase">
-                            {day}
-                        </div>
-                    ))}
-                </div>
-
-                {/* 日期网格 */}
-                <div className="grid grid-cols-7 gap-1">
-                    {calendarDays.map((day) => {
-                        const isCurrentMonth = day.getMonth() === viewDate.getMonth();
-                        const isSelected = isSameDay(day, tempSelectedDate);
-                        const isTodayDate = isToday(day);
-
-                        return (
-                            <button
-                                key={day.toISOString()}
-                                type="button"
-                                onClick={() => handleDateClick(day)}
-                                className={`
-                                    relative h-8 flex flex-col items-center justify-center text-[12px] rounded-md transition-all
-                                    ${!isCurrentMonth ? 'text-[var(--dida-text-tertiary)] opacity-40' : 'text-[var(--dida-text-secondary)] font-medium'}
-                                    ${isSelected ? 'bg-[var(--dida-primary)] text-white !font-bold shadow-sm' : 'hover:bg-[var(--dida-bg-hover)]'}
-                                    ${isTodayDate && !isSelected ? 'text-[var(--dida-primary)] !font-bold' : ''}
-                                `}
-                            >
-                                <span>{format(day, 'd')}</span>
-                                {isTodayDate && !isSelected && (
-                                    <div className="absolute bottom-1 w-1 h-1 bg-[var(--dida-primary)] rounded-full" />
-                                )}
-                            </button>
-                        );
-                    })}
-                </div>
-            </div>
-
-            {/* 底部功能栏 */}
-            <div className="px-2 pb-2 space-y-0.5 relative">
-                {/* 时间选择行 */}
-                <div className="relative">
-                    <button 
-                        type="button"
-                        onClick={(e) => {
-                            e.preventDefault();
-                            if (!isTimeSet) {
-                                setIsTimeSet(true);
-                                setShowTimeList(true);
-                                // 点击开启时间时，如果当前没有提醒，默认设为“准时”
-                                if (selectedReminder === 'none') {
-                                    setSelectedReminder('on_time');
-                                }
-                            } else {
-                                setShowTimeList(!showTimeList);
-                            }
-                        }}
-                        className="w-full flex items-center justify-between px-3 py-2 hover:bg-[var(--dida-bg-hover)] rounded-lg group transition-colors text-[var(--dida-text-secondary)]"
-                    >
-                        <div className="flex items-center gap-3">
-                            <Clock className={`w-4 h-4 ${isTimeSet ? 'text-[var(--dida-primary)]' : 'text-[var(--dida-text-tertiary)] group-hover:text-[var(--dida-text-secondary)]'}`} />
-                            {isTimeSet ? (
-                                <div 
-                                    className="flex items-center text-[var(--dida-primary)]" 
-                                    onClick={(e) => {
-                                        e.stopPropagation();
-                                        setShowTimeList(true);
-                                    }}
-                                >
-                                    <input
-                                        ref={hourInputRef}
-                                        type="text"
-                                        value={selectedTime.hour.toString().padStart(2, '0')}
-                                        onChange={handleHourChange}
-                                        onKeyDown={(e) => {
-                                            if (e.key === 'Enter') {
-                                                e.preventDefault();
-                                                e.stopPropagation();
-                                            }
-                                        }}
-                                        className="w-5 bg-transparent text-[13px] font-bold text-center outline-none"
-                                    />
-                                    <span className="mx-0.5 text-[13px] font-bold">:</span>
-                                    <input
-                                        ref={minuteInputRef}
-                                        type="text"
-                                        value={selectedTime.minute.toString().padStart(2, '0')}
-                                        onChange={handleMinuteChange}
-                                        onKeyDown={(e) => {
-                                            if (e.key === 'Enter') {
-                                                e.preventDefault();
-                                                e.stopPropagation();
-                                            }
-                                        }}
-                                        className="w-5 bg-transparent text-[13px] font-bold text-center outline-none"
-                                    />
-                                </div>
-                            ) : (
-                                <span className="text-[13px]">时间</span>
-                            )}
-                        </div>
-                        <div className="flex items-center gap-1">
-                            {isTimeSet ? (
-                                <X 
-                                    className="w-4 h-4 text-[var(--dida-text-tertiary)] hover:text-[var(--dida-text-secondary)] cursor-pointer" 
-                                    onClick={(e: React.MouseEvent) => {
-                                        e.stopPropagation();
-                                        e.preventDefault();
-                                        setIsTimeSet(false);
-                                        setShowTimeList(false);
-                                    }}
-                                />
-                            ) : (
-                                <ChevronRight className="w-4 h-4 text-[var(--dida-text-tertiary)]" />
-                            )}
-                        </div>
-                    </button>
-
-                    {/* 时间列表弹窗 */}
-                    {showTimeList && (
-                        <div 
-                            ref={timeListRef}
-                            className="absolute bottom-full left-0 w-full mb-1 bg-white shadow-[0_-4px_20px_rgba(0,0,0,0.15)] rounded-xl border border-[var(--dida-border-light)] py-1 max-h-[240px] overflow-y-auto z-[60] animate-in slide-in-from-bottom-2 duration-200"
-                        >
-                            {timeOptions.map(({ hour, minute }) => {
-                                const isSelected = selectedTime.hour === hour && selectedTime.minute === minute && isTimeSet;
-                                return (
-                                    <button
-                                        key={`${hour}:${minute}`}
-                                        type="button"
-                                        data-selected={isSelected}
-                                        onClick={(e) => {
-                                            e.preventDefault();
-                                            handleTimeSelect(hour, minute);
-                                        }}
-                                        className={`w-full px-4 py-2 text-left text-[13px] hover:bg-[var(--dida-bg-hover)] transition-colors flex items-center justify-between ${isSelected ? 'text-[var(--dida-primary)] bg-[rgba(var(--dida-primary-rgb),0.1)]' : 'text-[var(--dida-text-secondary)]'}`}
-                                    >
-                                        <span>{`${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`}</span>
-                                        {isSelected && <Check className="w-4 h-4" />}
-                                    </button>
-                                );
-                            })}
-                        </div>
-                    )}
-                </div>
-
-                {/* 提醒行 */}
-                <div className="relative">
-                    <button 
-                        type="button"
-                        onClick={(e) => {
-                            e.preventDefault();
-                            setShowReminderList(!showReminderList);
-                            setShowTimeList(false);
-                        }}
-                        className="w-full flex items-center justify-between px-3 py-2 hover:bg-[var(--dida-bg-hover)] rounded-lg group transition-colors text-[var(--dida-text-secondary)]"
-                    >
-                        <div className="flex items-center gap-3">
-                            <Bell className={`w-4 h-4 ${selectedReminder !== 'none' ? 'text-[var(--dida-primary)]' : 'text-[var(--dida-text-tertiary)] group-hover:text-[var(--dida-text-secondary)]'}`} />
-                            <span className={`text-[13px] ${selectedReminder !== 'none' ? 'text-[var(--dida-primary)] font-medium' : ''}`}>
-                                {reminderOptions.find(o => o.value === selectedReminder)?.label || '提醒'}
-                            </span>
-                        </div>
-                        <div className="flex items-center gap-1">
-                            {selectedReminder !== 'none' ? (
-                                <X 
-                                    className="w-4 h-4 text-[var(--dida-text-tertiary)] hover:text-[var(--dida-text-secondary)] cursor-pointer"
-                                    onClick={(e: React.MouseEvent) => {
-                                        e.stopPropagation();
-                                        e.preventDefault();
-                                        setSelectedReminder('none');
-                                        setShowReminderList(false);
-                                    }}
-                                />
-                            ) : (
-                                <ChevronRight className="w-4 h-4 text-[var(--dida-text-tertiary)]" />
-                            )}
-                        </div>
-                    </button>
-
-                    {/* 提醒列表弹窗 */}
-                    {showReminderList && (
-                        <div 
-                            ref={reminderListRef}
-                            className="absolute bottom-full left-0 w-full mb-1 bg-white shadow-[0_-4px_20px_rgba(0,0,0,0.15)] rounded-xl border border-[var(--dida-border-light)] py-1 z-[60] animate-in slide-in-from-bottom-2 duration-200"
-                        >
-                            <div className="max-h-[240px] overflow-y-auto">
-                                {reminderOptions.map((option) => {
-                                    const isSelected = selectedReminder === option.value;
-                                    return (
-                                        <button
-                                            key={option.value}
-                                            type="button"
-                                            onClick={(e) => {
-                                                e.preventDefault();
-                                                setSelectedReminder(option.value);
-                                                setShowReminderList(false);
-                                            }}
-                                            className={`w-full px-4 py-2 text-left text-[13px] hover:bg-[var(--dida-bg-hover)] transition-colors flex items-center justify-between ${isSelected ? 'text-[var(--dida-primary)] bg-[rgba(var(--dida-primary-rgb),0.1)]' : 'text-[var(--dida-text-secondary)]'}`}
-                                        >
-                                            <span>{option.label}</span>
-                                            {isSelected && <Check className="w-4 h-4" />}
-                                        </button>
-                                    );
-                                })}
-                            </div>
-                        </div>
-                    )}
-                </div>
-
-                {/* 重复行 */}
-                <div className="relative">
-                    <button
-                        type="button"
-                        onClick={(e) => {
-                            e.preventDefault();
-                            setShowRepeatList(!showRepeatList);
-                            setShowTimeList(false);
-                            setShowReminderList(false);
-                        }}
-                        className="w-full flex items-center justify-between px-3 py-2 hover:bg-[var(--dida-bg-hover)] rounded-lg group transition-colors text-[var(--dida-text-secondary)]"
-                    >
-                        <div className="flex items-center gap-3">
-                            <RefreshCw className={`w-4 h-4 ${selectedRepeat.type !== RepeatType.None ? 'text-[var(--dida-primary)]' : 'text-[var(--dida-text-tertiary)] group-hover:text-[var(--dida-text-secondary)]'}`} />
-                            <span className={`text-[13px] ${selectedRepeat.type !== RepeatType.None ? 'text-[var(--dida-primary)] font-medium' : ''}`}>
-                                重复
-                            </span>
-                        </div>
-                        <div className="flex items-center gap-1">
-                            <span className={`text-[13px] ${selectedRepeat.type !== RepeatType.None ? 'text-[var(--dida-primary)]' : 'text-[var(--dida-text-tertiary)]'}`}>
-                                {REPEAT_TYPE_LABELS[selectedRepeat.type]}
-                            </span>
-                            {selectedRepeat.type !== RepeatType.None ? (
-                                <X 
-                                    className="w-4 h-4 text-[var(--dida-text-tertiary)] hover:text-[var(--dida-text-secondary)] cursor-pointer"
-                                    onClick={(e: React.MouseEvent) => {
-                                        e.stopPropagation();
-                                        e.preventDefault();
-                                        setSelectedRepeat({ type: RepeatType.None });
-                                        setShowRepeatList(false);
-                                    }}
-                                />
-                            ) : (
-                                <ChevronRight className="w-4 h-4 text-[var(--dida-text-tertiary)]" />
-                            )}
-                        </div>
-                    </button>
-
-                    {/* 重复列表弹窗 */}
-                    {showRepeatList && (
-                        <div 
-                            ref={repeatListRef}
-                            className="absolute bottom-full left-0 w-full mb-1 bg-white shadow-[0_-4px_20px_rgba(0,0,0,0.15)] rounded-xl border border-[var(--dida-border-light)] py-1 z-[60] animate-in slide-in-from-bottom-2 duration-200"
-                        >
-                            <div className="max-h-[240px] overflow-y-auto">
-                                {REPEAT_OPTIONS.map((option) => {
-                                    const isSelected = selectedRepeat.type === option.value;
-                                    return (
-                                        <button
-                                            key={option.value}
-                                            type="button"
-                                            onClick={(e) => {
-                                                e.preventDefault();
-                                                handleRepeatSelect(option.value as RepeatType);
-                                            }}
-                                            className={`w-full px-4 py-2 text-left text-[13px] hover:bg-[var(--dida-bg-hover)] transition-colors flex items-center justify-between ${isSelected ? 'text-[var(--dida-primary)] bg-[rgba(var(--dida-primary-rgb),0.1)]' : 'text-[var(--dida-text-secondary)]'}`}
-                                        >
-                                            <span>{option.label}</span>
-                                            {isSelected && <Check className="w-4 h-4" />}
-                                        </button>
-                                    );
-                                })}
-                            </div>
-                        </div>
-                    )}
-
-                    {/* 自定义重复弹窗 */}
-                    {showCustomRepeat && (
-                        <div 
-                            ref={customRepeatRef}
-                            className="absolute bottom-full left-0 w-full mb-1 bg-white shadow-[0_-4px_20px_rgba(0,0,0,0.15)] rounded-xl border border-[var(--dida-border-light)] p-4 z-[70] animate-in slide-in-from-bottom-2 duration-200"
-                        >
-                            <div className="space-y-4">
-                                <div className="flex items-center justify-between">
-                                    <span className="text-[13px] text-[var(--dida-text-secondary)]">重复频率</span>
-                                    <select 
-                                        value={customRepeatType}
-                                        onChange={(e) => setCustomRepeatType(e.target.value as RepeatType)}
-                                        className="text-[13px] bg-transparent outline-none text-[var(--dida-primary)] font-medium"
-                                    >
-                                        <option value={RepeatType.Daily}>每天</option>
-                                        <option value={RepeatType.Weekly}>每周</option>
-                                        <option value={RepeatType.Monthly}>每月</option>
-                                        <option value={RepeatType.Yearly}>每年</option>
-                                    </select>
-                                </div>
-
-                                <div className="flex items-center justify-between">
-                                    <span className="text-[13px] text-[var(--dida-text-secondary)]">间隔</span>
-                                    <div className="flex items-center gap-2">
-                                        <input 
-                                            type="number" 
-                                            min="1"
-                                            value={customInterval}
-                                            onChange={(e) => setCustomInterval(Math.max(1, parseInt(e.target.value) || 1))}
-                                            className="w-12 text-center text-[13px] bg-[var(--dida-bg-hover)] rounded border-none outline-none py-1"
-                                        />
-                                        <span className="text-[13px] text-[var(--dida-text-tertiary)]">
-                                            {customRepeatType === RepeatType.Daily ? '天' : 
-                                             customRepeatType === RepeatType.Weekly ? '周' : 
-                                             customRepeatType === RepeatType.Monthly ? '月' : '年'}
-                                        </span>
-                                    </div>
-                                </div>
-
-                                {customRepeatType === RepeatType.Weekly && (
-                                    <div className="space-y-2">
-                                        <span className="text-[13px] text-[var(--dida-text-secondary)]">重复时间</span>
-                                        <div className="flex justify-between">
-                                            {['日', '一', '二', '三', '四', '五', '六'].map((day, index) => (
-                                                <button
-                                                    key={index}
-                                                    type="button"
-                                                    onClick={() => toggleDayOfWeek(index)}
-                                                    className={`w-7 h-7 flex items-center justify-center rounded-full text-[11px] transition-colors ${
-                                                        customDaysOfWeek.includes(index)
-                                                            ? 'bg-[var(--dida-primary)] text-white'
-                                                            : 'bg-[var(--dida-bg-hover)] text-[var(--dida-text-secondary)] hover:bg-[var(--dida-border-light)]'
-                                                    }`}
-                                                >
-                                                    {day}
-                                                </button>
-                                            ))}
-                                        </div>
-                                    </div>
-                                )}
-
-                                <div className="flex gap-2 pt-2">
-                                    <button
-                                        type="button"
-                                        onClick={() => setShowCustomRepeat(false)}
-                                        className="flex-1 py-1.5 text-[12px] text-[var(--dida-text-secondary)] hover:bg-[var(--dida-bg-hover)] rounded-md transition-colors"
-                                    >
-                                        取消
-                                    </button>
-                                    <button
-                                        type="button"
-                                        onClick={handleCustomConfirm}
-                                        className="flex-1 py-1.5 text-[12px] text-white bg-[var(--dida-primary)] rounded-md transition-colors font-medium"
-                                    >
-                                        确定
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
-                    )}
-                </div>
-            </div>
-
-            {/* 操作按钮区 */}
-            <div className="flex gap-2 p-2 pt-0">
-                <button
-                    type="button"
-                    onClick={handleClear}
-                    className="flex-1 py-2 text-[13px] font-medium text-[var(--dida-text-secondary)] hover:bg-[var(--dida-bg-hover)] rounded-lg transition-colors"
-                >
-                    清除
-                </button>
-                <button
-                    type="button"
-                    onClick={handleConfirm}
-                    className="flex-1 py-2 text-[13px] font-bold text-white bg-[var(--dida-primary)] hover:brightness-110 rounded-lg transition-all shadow-sm shadow-blue-200"
-                >
-                    确定
-                </button>
-            </div>
-        </div>
-    );
+      } else {
+        const next = new Date(); next.setDate(next.getDate() + days); selectDay(next); setMonth(next);
+      }
+    }} />
+    <div className="flex items-center justify-between px-2 py-2 text-[13px]">
+      <span className="font-medium">{format(month, 'yyyy年M月')}</span>
+      <div className="flex items-center gap-1 text-gray-500">
+        <button type="button" aria-label="上个月" className="p-1" onClick={() => setMonth(addMonths(month, -1))}><ChevronLeft className="w-3.5 h-3.5" /></button>
+        <button type="button" aria-label="回到今天" className="p-1" onClick={() => setMonth(new Date())}><Circle className="w-2 h-2" /></button>
+        <button type="button" aria-label="下一个月" className="p-1" onClick={() => setMonth(addMonths(month, 1))}><ChevronRight className="w-3.5 h-3.5" /></button>
+      </div>
+    </div>
+    <div className="grid grid-cols-7 text-center text-xs text-gray-400 pb-1">{'日一二三四五六'.split('').map(day => <span key={day}>{day}</span>)}</div>
+    <div ref={calendarRef} role="group" aria-label="选择日期" className="grid grid-cols-7 gap-y-1 pb-3">
+      {days.map(day => <button type="button" key={day.toISOString()} data-date={format(day, 'yyyy-MM-dd')} aria-pressed={isSameDay(day, date)} onClick={() => selectDay(day)}
+        className={`h-8 w-8 mx-auto rounded-full text-xs ${isSameDay(day, date) ? 'bg-[var(--dida-primary)] text-white' : day.getMonth() !== month.getMonth() ? 'text-gray-300' : isToday(day) ? 'text-[var(--dida-primary)] bg-blue-50' : 'text-gray-700 hover:bg-gray-100'}`}>
+        {day.getDate()}
+      </button>)}
+    </div>
+    <button type="button" className={rowClass} aria-expanded={expanded === 'time'} onClick={() => toggle('time')}><span className="flex items-center gap-3"><Clock className="w-4 h-4 text-gray-400" />时间</span><span>{time || '未设置'}</span></button>
+    {expanded === 'time' && <div className="flex items-center justify-between px-3 py-2 gap-2"><input aria-label="具体时间" type="time" value={time} onChange={event => setTime(event.target.value)} className="min-w-0 border border-gray-200 rounded px-2 py-1 text-sm" /><button type="button" aria-label="清除时间" onClick={() => setTime('')}><X className="w-4 h-4 text-gray-400" /></button></div>}
+    <button type="button" className={rowClass} aria-expanded={expanded === 'reminder'} onClick={() => toggle('reminder')}><span className="flex items-center gap-3"><Bell className="w-4 h-4 text-gray-400" />提醒</span><span>{REMINDER_OPTIONS.find(option => option.value === reminder)?.label || '不提醒'}</span></button>
+    {expanded === 'reminder' && <div className="rounded-lg border border-gray-100 py-1">{REMINDER_OPTIONS.map(option => <button type="button" key={option.value} className={`${rowClass} ${reminder === option.value ? 'text-blue-500' : ''}`} onClick={() => {
+      setReminder(option.value); if (option.value !== 'none' && !time) setTime('21:00'); setExpanded(null);
+    }}>{option.label}</button>)}</div>}
+    <button type="button" className={rowClass} aria-expanded={expanded === 'repeat' || custom} onClick={() => toggle('repeat')}><span className="flex items-center gap-3"><RefreshCw className="w-4 h-4 text-gray-400" />重复</span><span className="text-right">{repeatLabel(repeat, timestamp())}</span></button>
+    {expanded === 'repeat' && <div className="rounded-lg border border-gray-100 bg-white shadow-sm py-1">
+      {repeatTypes.map(type => <button type="button" key={type} className={rowClass} onClick={() => preset(type)}>{type === RepeatType.Custom ? '自定义重复' : repeatLabel(type === RepeatType.None ? null : { type, daysOfWeek: [date.getDay()], dayOfMonth: date.getDate(), monthOfYear: date.getMonth() + 1 }, timestamp())}</button>)}
+    </div>}
+    {custom && <div className="rounded-lg border border-gray-100 p-3 space-y-3 text-[13px]">
+      <label className="flex justify-between items-center gap-2">重复频率<select aria-label="重复频率" className="border rounded p-1" value={frequency} onChange={event => setFrequency(event.target.value as typeof frequency)}><option value="daily">按天</option><option value="weekly">按周</option><option value="monthly">按月</option><option value="yearly">按年</option></select></label>
+      <label className="flex justify-between items-center gap-2">间隔<input aria-label="重复间隔" type="number" min={1} max={999} value={interval} onChange={event => setIntervalValue(Number(event.target.value))} className="w-20 border rounded p-1" /></label>
+      {frequency === 'weekly' && <div><div className="mb-2 text-gray-500">每周重复日期</div><div className="flex justify-between">{'日一二三四五六'.split('').map((day, index) => <button type="button" aria-label={`星期${day}`} aria-pressed={weekdays.includes(index)} key={index} className={`w-7 h-7 rounded-full ${weekdays.includes(index) ? 'bg-blue-500 text-white' : 'bg-gray-50'}`} onClick={() => setWeekdays(current => current.includes(index) ? current.filter(value => value !== index) : [...current, index])}>{day}</button>)}</div></div>}
+      <div className="flex justify-end gap-3"><button type="button" onClick={() => { setCustom(false); setError(''); }}>取消重复修改</button><button type="button" className="text-blue-500" onClick={applyCustom}>应用重复规则</button></div>
+    </div>}
+    {error && <p role="alert" className="text-xs text-red-500 px-2 py-1">{error}</p>}
+    <div className="flex items-center justify-between gap-2 pt-3 px-1 border-t border-gray-50 mt-2">
+      <button type="button" className="px-3 py-1.5 text-xs text-gray-400 hover:bg-gray-50 rounded" onClick={() => onSelect(undefined, 'none', null)}>清除</button>
+      <button type="button" className="px-3 py-1.5 text-xs text-gray-500 hover:bg-gray-50 rounded" onClick={onCancel}>取消</button>
+      <button type="button" disabled={custom} className="flex-1 bg-[var(--dida-primary)] disabled:opacity-40 text-white rounded py-1.5 text-xs" onClick={confirm}>确定</button>
+    </div>
+  </div>;
 }
-

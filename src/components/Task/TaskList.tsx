@@ -21,33 +21,9 @@ import { Task, Priority, RepeatRule } from '../../types';
 import { useAppStore } from '../../store/useAppStore';
 import { useAlertStore } from '../../store/useAlertStore';
 import TaskItem from './TaskItem';
+import { sortTasksByDate } from '../../utils/taskOrder';
+import { useResponsiveLayout } from '../../hooks/useResponsiveLayout';
 import DatePicker from '../Common/DatePicker';
-
-interface TaskTreeItemProps {
-  task: Task;
-  allTasks: Task[];
-  depth?: number;
-}
-
-function TaskTreeItem({ task, allTasks, depth = 0 }: TaskTreeItemProps) {
-  const subtasks = allTasks.filter(t => t.parent_id === task.id);
-  const incompleteSubtasks = subtasks.filter(t => !t.is_deleted && !t.completed);
-  const completedSubtasks = subtasks.filter(t => !t.is_deleted && t.completed);
-
-  return (
-    <div className="flex flex-col">
-      <TaskItem task={task} depth={depth} />
-      {/* 渲染未完成的子任务 */}
-      {incompleteSubtasks.map(subtask => (
-        <TaskTreeItem key={subtask.id} task={subtask} allTasks={allTasks} depth={depth + 1} />
-      ))}
-      {/* 渲染已完成的子任务 */}
-      {completedSubtasks.map(subtask => (
-        <TaskTreeItem key={subtask.id} task={subtask} allTasks={allTasks} depth={depth + 1} />
-      ))}
-    </div>
-  );
-}
 
 import { SMART_LIST_IDS } from '../../constants/smartLists';
 import { useClickOutside } from '../../hooks/useClickOutside';
@@ -55,13 +31,20 @@ import { formatTaskDateTime } from '../../utils/date';
 import { getPriorityLabel, getPriorityTextClass } from '../../utils/priority';
 import { groupTasks, getSortedGroupNames } from '../../utils/taskGrouping';
 export default function TaskList() {
+  const { compactNavigation, drawerDetails } = useResponsiveLayout();
+  const { navigationDrawerOpen, setNavigationDrawerOpen } = useAppStore();
+  const isSidebarCollapsed = useAppStore(state => state.isSidebarCollapsed);
+  const sidebarHidden = compactNavigation ? !navigationDrawerOpen : isSidebarCollapsed;
   const { 
     selectedListId, 
     selectedTagId, 
-    isSidebarCollapsed, 
     toggleSidebar 
   } = useAppStore();
   const { data: tasks } = useTasks(selectedListId || undefined, selectedTagId || undefined);
+  const { data: allTasks } = useTasks();
+  const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
+  const [insertions, setInsertions] = useState<Record<string, string>>({});
+  useEffect(() => { setEditingTaskId(null); setInsertions({}); }, [selectedListId, selectedTagId]);
   const { data: allTags } = useTags();
   const { data: lists } = useLists();
   const createTask = useCreateTaskExtended();
@@ -240,6 +223,8 @@ export default function TaskList() {
     const oldIndex = localTasks.findIndex((t) => t.id === active.id);
     const newIndex = localTasks.findIndex((t) => t.id === over.id);
 
+    if (oldIndex < 0 || newIndex < 0 || localTasks[oldIndex].completed !== localTasks[newIndex].completed || localTasks[oldIndex].due_date !== localTasks[newIndex].due_date) return;
+    setInsertions({});
     const newTasks = arrayMove(localTasks, oldIndex, newIndex);
     setLocalTasks(newTasks);
 
@@ -264,31 +249,42 @@ export default function TaskList() {
     else if (isTodayView) strategy = 'today';
     else if (isWeekView) strategy = 'week';
 
-    if (strategy === 'none') return null;
-
-    const groups = groupTasks(localTasks, strategy);
+    const roots = isTrashView ? localTasks.filter(t => !t.parent_id) : sortTasksByDate(localTasks.filter(t => !t.parent_id));
+    const groups = strategy === 'none'
+      ? { '任务': roots.filter(t => !t.completed), '已完成': roots.filter(t => t.completed) }
+      : groupTasks(roots, strategy);
     const sortedNames = getSortedGroupNames(groups);
 
-    return sortedNames.map(name => ({
-      name,
-      tasks: groups[name]
-    }));
-  }, [localTasks, isAllView, isTodayView, isWeekView]);
-
-  const incompleteTasks = localTasks.filter((task) => {
-    if (task.completed) return false;
-    return !task.parent_id;
-  });
-
-  const completedTasks = localTasks.filter((task) => {
-    if (!task.completed) return false;
-    if (isTrashView || isCompletedView) return true;
-    if (selectedTagId) {
-      // 同上，避免重复显示
-      return !task.parent_id || !localTasks.some(t => t.id === task.parent_id);
+    for (const [id, anchorId] of Object.entries(insertions)) {
+      const source = Object.keys(groups).find(name => groups[name].some(t => t.id === id));
+      const target = Object.keys(groups).find(name => groups[name].some(t => t.id === anchorId));
+      if (!source || !target || id !== editingTaskId) continue;
+      const task = groups[source].find(t => t.id === id)!;
+      const anchor = groups[target].find(t => t.id === anchorId)!;
+      if (task.due_date !== anchor.due_date) continue;
+      groups[source] = groups[source].filter(t => t.id !== id);
+      const index = groups[target].findIndex(t => t.id === anchorId);
+      groups[target].splice(index + 1, 0, task);
     }
-    return !task.parent_id;
-  });
+    return sortedNames.map(name => ({ name, tasks: groups[name] }));
+  }, [localTasks, isAllView, isTodayView, isWeekView, isTrashView, insertions, editingTaskId]);
+
+  const renderTask = (task: Task) => (
+    <TaskItem key={task.id} task={task}
+      subtasks={(allTasks || []).filter(t => t.parent_id === task.id && !t.is_deleted)}
+      isEditing={editingTaskId === task.id}
+      onEdit={() => { if (!drawerDetails) setEditingTaskId(task.id); }}
+      onEditEnd={() => {
+        setEditingTaskId(current => current === task.id ? null : current);
+        setInsertions(current => { const next = { ...current }; delete next[task.id]; return next; });
+      }}
+      onCreated={next => {
+        setLocalTasks(current => [...current.filter(t => t.id !== next.id), next].sort((a, b) => a.order - b.order));
+        setInsertions(current => { const positions = { ...current, [next.id]: task.id }; delete positions[task.id]; return positions; });
+        setEditingTaskId(next.id);
+      }}
+    />
+  );
 
   const hideInput = isTrashView || isCompletedView;
 
@@ -323,11 +319,11 @@ export default function TaskList() {
       <div className="px-6 py-4 flex items-center justify-between shrink-0">
         <div className="flex items-center gap-3">
           <button
-            onClick={toggleSidebar}
+            onClick={() => compactNavigation ? setNavigationDrawerOpen(!navigationDrawerOpen) : toggleSidebar()}
             className="p-1.5 hover:bg-gray-100 rounded-md transition-colors text-gray-400 hover:text-gray-600"
-            title={isSidebarCollapsed ? "显示侧边栏" : "收起侧边栏"}
+            title={sidebarHidden ? "显示侧边栏" : "收起侧边栏"}
           >
-            {isSidebarCollapsed ? <PanelLeftOpen className="w-5 h-5" /> : <PanelLeftClose className="w-5 h-5" />}
+            {sidebarHidden ? <PanelLeftOpen className="w-5 h-5" /> : <PanelLeftClose className="w-5 h-5" />}
           </button>
           {selectedTagId ? (
             isEditingTitle ? (
@@ -391,7 +387,7 @@ export default function TaskList() {
                   value={newTaskTitle}
                   onChange={(e) => setNewTaskTitle(e.target.value)}
                   placeholder="添加任务"
-                  className="flex-1 bg-transparent h-9 text-[14px] text-gray-700 outline-none placeholder:text-gray-400"
+                  className="min-w-0 flex-1 bg-transparent h-9 text-[14px] text-gray-700 outline-none placeholder:text-gray-400"
                 />
 
                 {/* 右侧按钮组 - 只有在聚焦或有内容时才显示 */}
@@ -420,6 +416,7 @@ export default function TaskList() {
                           selectedDate={newTaskDueDate}
                           reminder={newTaskReminder}
                           repeat_rule={newTaskRepeat}
+                          onCancel={() => setShowDatePicker(false)}
                           onSelect={(timestamp, reminder, repeat_rule) => {
                             setNewTaskDueDate(timestamp);
                             setNewTaskReminder(reminder);
@@ -667,59 +664,21 @@ export default function TaskList() {
           onDragEnd={handleDragEnd}
           modifiers={[restrictToVerticalAxis]}
         >
-          {taskGroups ? (
-            /* 分组视图 (所有/今天/最近7天) */
-            <div className="pb-10">
-              {taskGroups.map(({ name, tasks }) => (
-                tasks.length > 0 && (
-                  <div key={name} className="mb-6">
-                    <div className="px-4 py-2 text-[13px] font-bold text-gray-900 flex items-center gap-2">
-                      <span>{name}</span>
-                      <span className="font-normal text-[11px] text-gray-400">({tasks.length})</span>
-                    </div>
-                    <div>
-                      {tasks.map((task: Task) => (
-                        <TaskTreeItem key={task.id} task={task} allTasks={localTasks} />
-                      ))}
-                    </div>
+          <div className="pb-10">
+            {taskGroups.map(({ name, tasks }) => tasks.length > 0 && (
+              <div key={name} className={['任务', '无日期', '更远'].includes(name) ? '' : 'mb-6'}>
+                {!['任务', '无日期', '更远'].includes(name) && (
+                  <div className="px-4 py-2 text-[13px] font-bold text-gray-900 flex items-center gap-2">
+                    <span>{name}</span>
+                    <span className="font-normal text-[11px] text-gray-400">({tasks.length})</span>
                   </div>
-                )
-              ))}
-            </div>
-          ) : (
-            <>
-              {/* 常规视图：未完成任务区域 - 仅该区域支持拖拽排序 */}
-              <SortableContext items={incompleteTasks.map(t => t.id)} strategy={verticalListSortingStrategy}>
-                <div>
-                  {incompleteTasks.map((task) => (
-                    (isTrashView || isCompletedView) ? (
-                      <TaskItem key={task.id} task={task} />
-                    ) : (
-                      <TaskTreeItem key={task.id} task={task} allTasks={localTasks} />
-                    )
-                  ))}
-                </div>
-              </SortableContext>
-
-              {/* 常规视图：已完成任务区域 - 不参与拖拽排序上下文 */}
-              {completedTasks.length > 0 && (
-                <div className="mt-8">
-                  <div className="px-4 py-2 text-[12px] font-bold text-gray-400">
-                    已完成 ({completedTasks.length})
-                  </div>
-                  <div>
-                    {completedTasks.map((task) => (
-                      (isTrashView || isCompletedView) ? (
-                        <TaskItem key={task.id} task={task} />
-                      ) : (
-                        <TaskTreeItem key={task.id} task={task} allTasks={localTasks} />
-                      )
-                    ))}
-                  </div>
-                </div>
-              )}
-            </>
-          )}
+                )}
+                <SortableContext items={tasks.map(t => t.id)} strategy={verticalListSortingStrategy}>
+                  {tasks.map(renderTask)}
+                </SortableContext>
+              </div>
+            ))}
+          </div>
         </DndContext>
 
         {localTasks.length === 0 && (

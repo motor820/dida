@@ -38,10 +38,15 @@ pub struct Store {
     pub db: Arc<Mutex<Connection>>,
     pub username: String,
 }
+fn is_false(value: &bool) -> bool {
+    !*value
+}
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Field {
     pub value: Value,
     pub stamp: String,
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub initial: bool,
 }
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Record {
@@ -56,6 +61,8 @@ pub struct Operation {
     pub id: String,
     pub patch: BTreeMap<String, Value>,
     pub stamp: String,
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub initialize: bool,
 }
 
 fn db_error(_: impl std::fmt::Display) -> String {
@@ -402,16 +409,16 @@ impl Store {
                 .is_some_and(|f| f.value == json!(true))
             {
                 for (key, value) in &op.patch {
-                    if record
-                        .fields
-                        .get(key)
-                        .is_none_or(|old| op.stamp > old.stamp)
-                    {
+                    if record.fields.get(key).is_none_or(|old| {
+                        (old.initial && !op.initialize)
+                            || (old.initial == op.initialize && op.stamp > old.stamp)
+                    }) {
                         record.fields.insert(
                             key.clone(),
                             Field {
                                 value: value.clone(),
                                 stamp: op.stamp.clone(),
+                                initial: op.initialize,
                             },
                         );
                     }
@@ -474,6 +481,7 @@ mod tests {
             kind: "task".into(),
             id: "task-1".into(),
             stamp: format!("{t:013}-000000-device-1"),
+            initialize: false,
             patch: serde_json::from_value(patch).unwrap(),
         }
     }
@@ -532,6 +540,59 @@ mod tests {
             .is_err());
         assert_eq!(s.pull(0, None).unwrap()["cursor"], 0);
     }
+    #[test]
+    fn repeat_initializers_never_reset_real_edits_in_either_arrival_order() {
+        for initializer_first in [true, false] {
+            let s = store();
+            let t = now();
+            let mut initial = op(
+                "initialize",
+                t + 1000,
+                json!({"title":"copied title","completed":false,"is_deleted":false,"due_date":42}),
+            );
+            initial.initialize = true;
+            let edit = op(
+                "edit",
+                t,
+                json!({"title":"edited title","completed":true,"is_deleted":true}),
+            );
+            let operations = if initializer_first {
+                vec![initial.clone(), edit]
+            } else {
+                vec![edit, initial.clone()]
+            };
+            s.push("device-1", &operations).unwrap();
+            s.push("device-1", &[initial]).unwrap();
+            let pull = s.pull(0, None).unwrap();
+            let records = pull["records"].as_array().unwrap();
+            let last = records.last().unwrap();
+            assert_eq!(last["fields"]["title"]["value"], "edited title");
+            assert_eq!(last["fields"]["completed"]["value"], true);
+            assert_eq!(last["fields"]["is_deleted"]["value"], true);
+            assert_eq!(last["fields"]["due_date"]["value"], 42);
+            assert_eq!(last["fields"]["due_date"]["initial"], true);
+            assert!(last["fields"]["title"].get("initial").is_none());
+        }
+    }
+
+    #[test]
+    fn repeat_initializer_cannot_resurrect_a_permanently_deleted_occurrence() {
+        let s = store();
+        let t = now();
+        s.push("device-1", &[op("delete", t, json!({"__deleted":true}))])
+            .unwrap();
+        let mut initial = op(
+            "initialize",
+            t + 1000,
+            json!({"title":"old copy","completed":false}),
+        );
+        initial.initialize = true;
+        s.push("device-1", &[initial]).unwrap();
+        let pull = s.pull(0, None).unwrap();
+        assert_eq!(pull["records"].as_array().unwrap().len(), 1);
+        assert_eq!(pull["records"][0]["fields"]["__deleted"]["value"], true);
+    }
+
     #[test]
     fn password_change_revokes_all_devices() {
         let s = store();

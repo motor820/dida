@@ -230,3 +230,28 @@ export function useToggleTask() {
     },
   });
 }
+
+export function useCreateTaskAfter() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, title }: { id: string; title: string }) => taskService.createTaskAfter(id, title),
+    onSuccess: (task) => {
+      queryClient.setQueryData(['task', task.id], task);
+      queryClient.invalidateQueries({ queryKey: ['task'] });
+      queryClient.invalidateQueries({ queryKey: ['tasks'] });
+      queryClient.invalidateQueries({ queryKey: ['subtasks'] });
+    },
+  });
+}
+
+export function useConvertDescriptionToSubtasks() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, description, checklistText, detailDescription }: { id: string; description: string; checklistText?: string; detailDescription?: string }) => taskService.convertDescriptionToSubtasks(id, description, checklistText, detailDescription),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['task'] });
+      queryClient.invalidateQueries({ queryKey: ['tasks'] });
+      queryClient.invalidateQueries({ queryKey: ['subtasks'] });
+    },
+  });
+}

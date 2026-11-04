@@ -12,4 +12,4 @@ React Query reflects business data and Zustand holds UI state. Persist entity ch
 
 ## Validation and Known Gaps
 
-Run `npm run test:sync` for sync changes and `npm run build` for frontend changes. Tests use Node, not Vitest. UI regression infrastructure is a candidate task, not an existing facility. Search/calendar navigation is incomplete; recurring-instance generation and background notifications are not fully implemented. Follow the root `TODO.md` for current priorities.
+Run `npm run test:sync` for sync changes and `npm run build` for frontend changes. Tests use Node, not Vitest. UI regression infrastructure is a candidate task, not an existing facility. Search/calendar navigation and background system notifications remain incomplete. Browser completion generates recurring instances through services/recurrence.ts and utils/recurrence.ts; validate with test:recurrence and the isolated two-browser API test before changing recurrence or sync merging. Follow the root `TODO.md` for current priorities.

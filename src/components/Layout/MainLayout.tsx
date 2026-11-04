@@ -1,6 +1,8 @@
 import { ReactNode, useState, useEffect, useCallback } from 'react';
 import Sidebar from './Sidebar';
 import NavRail from './NavRail';
+import ResponsivePanel from './ResponsivePanel';
+import { useResponsiveLayout } from '../../hooks/useResponsiveLayout';
 import { useShortcuts } from '../../hooks/useShortcuts';
 import { useAppStore } from '../../store/useAppStore';
 
@@ -14,7 +16,9 @@ const DEFAULT_SIDEBAR_WIDTH = 240;
 
 export default function MainLayout({ children }: MainLayoutProps) {
   useShortcuts();
-  const { isSidebarCollapsed } = useAppStore();
+  const { compactNavigation, drawerDetails } = useResponsiveLayout();
+  const { isSidebarCollapsed, navigationDrawerOpen, setNavigationDrawerOpen, selectedListId, selectedTagId, detailDrawerOpen } = useAppStore();
+  useEffect(() => { setNavigationDrawerOpen(false); }, [selectedListId, selectedTagId, compactNavigation, setNavigationDrawerOpen]);
   
   const [sidebarWidth, setSidebarWidth] = useState(() => {
     const saved = localStorage.getItem('sidebarWidth');
@@ -67,26 +71,31 @@ export default function MainLayout({ children }: MainLayoutProps) {
     }
   }, [isResizing, resize, stopResizing]);
 
+  const visibleSidebarWidth = compactNavigation
+    ? 'min(240px, calc(100vw - 60px))'
+    : isSidebarCollapsed ? 0 : `min(${sidebarWidth}px, calc(100vw - 890px))`;
+
   return (
     <div className="flex h-full bg-white overflow-hidden">
-      <NavRail />
-      
-      <div 
-        className={`flex transition-all duration-300 ease-in-out overflow-hidden ${isSidebarCollapsed ? 'w-0' : ''}`}
-        style={{ width: isSidebarCollapsed ? 0 : sidebarWidth }}
-      >
-        <Sidebar width={sidebarWidth} />
-        
-        {/* Resizer Divider */}
-        <div 
-          className={`w-[6px] -ml-[3px] h-full cursor-col-resize transition-colors z-[100] relative group`}
-          onMouseDown={startResizing}
-        >
-          <div className={`absolute inset-y-0 left-[2px] w-[2px] transition-colors ${isResizing ? 'bg-[var(--dida-primary)]' : 'bg-transparent group-hover:bg-[var(--dida-primary)] group-hover:delay-75'}`} />
-        </div>
+      <div className="h-full shrink-0" inert={(compactNavigation && navigationDrawerOpen) || (drawerDetails && detailDrawerOpen)}>
+        <NavRail />
       </div>
-
-      <main className="flex-1 flex flex-col overflow-hidden bg-white">
+      <ResponsivePanel drawer={compactNavigation} open={navigationDrawerOpen} label="导航栏" side="left"
+        onClose={() => setNavigationDrawerOpen(false)}>
+        <div className="flex h-full shrink-0">
+          <div className="flex shrink-0 transition-all duration-300 ease-in-out overflow-hidden"
+            style={{ width: visibleSidebarWidth }}>
+            <Sidebar width={compactNavigation ? 240 : sidebarWidth} />
+            {!compactNavigation && (
+              <div className="w-[6px] -ml-[3px] h-full cursor-col-resize transition-colors z-[100] relative group"
+                onMouseDown={startResizing}>
+                <div className={`absolute inset-y-0 left-[2px] w-[2px] transition-colors ${isResizing ? 'bg-[var(--dida-primary)]' : 'bg-transparent group-hover:bg-[var(--dida-primary)] group-hover:delay-75'}`} />
+              </div>
+            )}
+          </div>
+        </div>
+      </ResponsivePanel>
+      <main className="min-w-0 flex-1 flex flex-col overflow-hidden bg-white">
         {children}
       </main>
     </div>

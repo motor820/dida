@@ -1,7 +1,7 @@
 export type Kind = 'task' | 'list' | 'tag';
-export interface Field { value: unknown; stamp: string }
+export interface Field { value: unknown; stamp: string; initial?: boolean }
 export interface SyncRecord { kind: Kind; id: string; fields: { [key: string]: Field } }
-export interface Operation { op_id: string; kind: Kind; id: string; patch: { [key: string]: unknown }; stamp: string }
+export interface Operation { op_id: string; kind: Kind; id: string; patch: { [key: string]: unknown }; stamp: string; initialize?: boolean }
 export interface LocalState {
   schema: 1; device: string; records: { [key: string]: SyncRecord }; outbox: Operation[];
   cursor: number; epoch: string; lastTime: number; counter: number; offset: number; username: string; lastSync: number;
@@ -18,13 +18,14 @@ export function mergeRecord(old: SyncRecord | undefined, incoming: SyncRecord): 
   for (const [key, field] of Object.entries(incoming.fields)) {
     if (key === '__proto__' || key === 'constructor' || key === 'prototype') throw new Error('无效数据字段');
     if (key === '__deleted' && fields[key]?.value === true) continue;
-    if (!fields[key] || field.stamp > fields[key].stamp || (key === '__deleted' && field.value === true)) fields[key] = field;
+    const old = fields[key];
+    if (!old || (old.initial && !field.initial) || (!!old.initial === !!field.initial && field.stamp > old.stamp) || (key === '__deleted' && field.value === true)) fields[key] = field;
   }
   return { kind: incoming.kind, id: incoming.id, fields };
 }
 export function applyOperation(state: LocalState, operation: Operation): void {
   const incoming: SyncRecord = { kind: operation.kind, id: operation.id, fields: {} };
-  for (const [key, value] of Object.entries(operation.patch)) incoming.fields[key] = { value, stamp: operation.stamp };
+  for (const [key, value] of Object.entries(operation.patch)) incoming.fields[key] = { value, stamp: operation.stamp, ...(operation.initialize ? { initial: true } : {}) };
   const key = `${operation.kind}:${operation.id}`;
   state.records[key] = mergeRecord(state.records[key], incoming);
 }

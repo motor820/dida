@@ -82,8 +82,9 @@ class OfflineStore {
     return Object.values(this.state.records).filter(r => r.kind === kind && r.fields.__deleted?.value !== true)
       .map(r => decodeRecord<T>(r));
   }
+  recordIds(kind: Kind): string[] { return Object.values(this.state.records).filter(record => record.kind === kind).map(record => record.id); }
   async put(kind: Kind, value: { id: string; [key: string]: unknown }): Promise<void> { await this.batch([{ kind, id: value.id, value }]); }
-  async batch(updates: { kind: Kind; id: string; value: { [key: string]: unknown } }[]): Promise<void> {
+  async batch(updates: { kind: Kind; id: string; value: { [key: string]: unknown }; initialize?: boolean }[]): Promise<void> {
     await this.change(s => {
       for (const update of updates) {
         const old = s.records[`${update.kind}:${update.id}`];
@@ -95,7 +96,7 @@ class OfflineStore {
         }
         const patch = changedFields(update.value, old);
         if (!Object.keys(patch).length) continue;
-        const op: Operation = { op_id: uid(), kind: update.kind, id: update.id, patch, stamp: stamp(s) };
+        const op: Operation = { op_id: uid(), kind: update.kind, id: update.id, patch, stamp: stamp(s), ...(update.initialize ? { initialize: true } : {}) };
         applyOperation(s, op); s.outbox.push(op);
       }
     });

@@ -1,4 +1,4 @@
-import { Task } from '../types';
+import type { Task } from '../types/task.ts';
 
 export type GroupName = string;
 
@@ -12,7 +12,7 @@ export interface TaskGroup {
  */
 export const getTaskDateGroupName = (task: Task, strategy: 'all' | 'today' | 'week' = 'all'): string => {
   if (task.completed) return '已完成';
-  if (!task.due_date) return '无日期';
+  if (task.due_date == null) return '无日期';
 
   const now = new Date();
   now.setHours(0, 0, 0, 0);
@@ -78,7 +78,7 @@ export const getSortedGroupNames = (groups: Record<string, Task[]>): string[] =>
     '今天': 20,
     '明天': 30,
     '更远': 100,
-    '无日期': 110,
+    '无日期': -10,
     '已完成': 200,
   };
 

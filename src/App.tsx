@@ -1,7 +1,6 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import MainLayout from './components/Layout/MainLayout';
-import TaskList from './components/Task/TaskList';
-import TaskDetail from './components/Task/TaskDetail';
+import TaskWorkspace from './components/Layout/TaskWorkspace';
 import Toast from './components/Common/Toast';
 import AlertDialog from './components/Common/AlertDialog';
 import ReminderManager from './components/Task/ReminderManager';
@@ -26,12 +25,7 @@ function App() {
     <QueryClientProvider client={queryClient}>
       <SyncGate>
       <MainLayout>
-        <div className="flex h-full">
-          <div className="flex-1">
-            <TaskList />
-          </div>
-          <TaskDetail />
-        </div>
+        <TaskWorkspace />
       </MainLayout>
       <Toast />
       <AlertDialog />
