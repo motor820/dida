@@ -3,7 +3,7 @@
 本阶段交付网页版、Apple Silicon Mac 桌面端及自建同步 API；暂未开发安卓客户端。
 
 - 网页：https://dida.aiking.net:888/
-- 账号：motor。三端使用同一密码；初始密码不进入仓库，由部署者单独提供。
+- 账号：motordida。网页与 Mac 使用同一密码；初始密码不进入仓库，由部署者单独提供。
 - Mac 首次启动可点击“先离线使用，稍后登录同步”。已经保存的任务、修改及待上传队列都在本机 SQLite 中；网络不可用时仍能编辑。
 - 网页首次进入需要登录，数据使用 IndexedDB；页面已打开时可继续断网编辑，再联网补传。不把浏览器缓存清理当作退出方式，先同步或导出备份。
 - 顶部“账号与同步”可登录、修改共用密码、查看和撤销其他设备、导入导出数据。改密撤销所有旧登录；退出登录会清理这台设备缓存，若有待上传修改应先导出。
@@ -36,10 +36,10 @@ cargo test --manifest-path server/Cargo.toml
 - 服务：systemctl --user status dida-sync.service
 - 日志：journalctl --user -u dida-sync.service --since today
 - 启动/停止：systemctl --user start/stop dida-sync.service
-- 运行目录：~/.local/lib/dida-sync/
-- 配置：~/.config/dida-sync/environment
-- 数据：~/.local/share/dida-sync/dida.sqlite3
-- 备份：~/.local/share/dida-sync/backups/；每天 03:30 后执行，保留最近 14 份。
+- 运行目录：~/dida/runtime/
+- 配置：~/dida/private/environment
+- 数据：~/dida/data/dida.sqlite3
+- 备份：~/dida/backups/；每天 03:30 后执行，保留最近 14 份。
 - 手动备份：systemctl --user start dida-sync-backup.service
 - 已启用用户 linger，无需登录桌面也会开机运行。
 - 后端只监听 127.0.0.1:1430；公网 888 经路由器映射至本机 443。DNS 使用仅 DNS，证书由 1Panel 管理并自动续签。
@@ -50,4 +50,8 @@ cargo test --manifest-path server/Cargo.toml
 
 当前重复任务沿用原项目能力：保存与同步规则，自动生成下一次任务的完整调度尚未作为本阶段交付承诺。提醒仍为打开应用时的本地提示，不承诺退出应用后的系统通知；安卓原生提醒在后续阶段开发。
 
-CI 在可用的标准 Intel Mac 运行器上交叉编译 aarch64 安装包，并另外编译同源码的 Intel 版本进行启动检查；只上传 Apple Silicon 产物。用户的 Apple Silicon 真机验收仍是最终步骤。
+CI 在可用的标准 Intel Mac 运行器上交叉编译 aarch64 安装包，并另外编译同源码的 Intel 版本进行启动检查；只上传 Apple Silicon 产物。用户已于 2026-11-04 确认 M1 版本测试通过；具体场景未逐项提供，不据此声称所有平台和后台行为均已验收。
+
+## 开发进度与交接
+
+当前待办以 [TODO.md](../TODO.md) 为准，交接以 [WORK-STATUS.md](WORK-STATUS.md) 为准。受版本管理的部署资料见 [deployment/index.md](deployment/index.md)。

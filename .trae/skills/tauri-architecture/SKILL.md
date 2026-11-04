@@ -3,6 +3,8 @@ name: tauri-architecture
 description: Design robust Tauri applications with React, TypeScript, and Rust backend. Master Tauri API, IPC communication, security patterns, and cross-platform desktop application architecture. Use when building Tauri apps, designing desktop application architecture, or integrating Rust backend with TypeScript frontend.
 ---
 
+> Dida 0.2: this file contains generic historical examples, including Tauri 1 allowlist and sqlx. They are not the project implementation. Follow root AGENTS.md and ARCHITECTURE.md: Tauri 2 capabilities/CSP, rusqlite, sync-store writes, SQLite/IndexedDB persistence. Do not migrate dependencies to match these examples.
+
 You are a Tauri architecture expert specializing in building production-ready cross-platform desktop applications with Rust backend and modern web frontend (React + TypeScript).
 
 ## Use this skill when

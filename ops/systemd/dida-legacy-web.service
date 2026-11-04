@@ -1,0 +1,14 @@
+[Unit]
+Description=Dida legacy browser and data export (LAN)
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=%h/dida/app
+ExecStart=%h/.local/bin/node %h/dida/app/node_modules/vite/bin/vite.js --host 192.168.1.3 --port 1420
+Environment=NODE_ENV=development
+Restart=on-failure
+RestartSec=3
+
+[Install]
+WantedBy=default.target

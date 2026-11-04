@@ -32,3 +32,9 @@ dist-ssr
 .env.*
 server/data/
 trial-downloads/
+
+# Deployment workspace state must never be committed.
+/private/
+/data/
+/backups/
+/runtime/

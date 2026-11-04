@@ -5,6 +5,8 @@ description: Guides development of cross-platform desktop apps with Tauri 2, Typ
 
 # Tauri 2 + React + Rust 跨平台开发
 
+> Dida 0.2 项目约定：以根目录 AGENTS.md、ARCHITECTURE.md 和 TODO.md 为准。业务由 sync store 持久化，Mac 为 SQLite、网页为 IndexedDB；通用示例不代表现有文件或已交付能力。
+
 基于 Tauri 2、TypeScript、React、Rust 技术栈的跨平台桌面应用开发指引。整合架构、IPC、后端与前端最佳实践。
 
 ## 何时使用本 Skill
@@ -13,7 +15,7 @@ description: Guides development of cross-platform desktop apps with Tauri 2, Typ
 - 编写 Rust 后端命令、状态、错误处理
 - 编写 TypeScript/React 前端、类型与 invoke 封装
 - 新建项目、实现功能、异步/复杂类型场景
-- 配置安全（allowlist）、构建与调试
+- 配置安全（capabilities/CSP）、构建与调试
 - **调研目标网站**：克隆/仿站时，自动打开网站并查看页面元素、结构、交互，指导实现
 - **验证开发效果**：开发完成后，自动打开本地开发站点或打包前端，验证元素与交互是否按预期完成
 
@@ -23,7 +25,7 @@ description: Guides development of cross-platform desktop apps with Tauri 2, Typ
 2. **测试驱动**：先写测试再写实现
 3. **类型一致**：Rust 模型与 TypeScript 类型严格对应
 4. **异步优先**：I/O 用 async/await；CPU 密集用 `spawn_blocking`
-5. **安全第一**：配置 allowlist、校验并规范化输入（如路径）
+5. **安全第一**：配置 capabilities/CSP、校验并规范化输入（如路径）
 
 ## 项目结构
 
@@ -111,7 +113,7 @@ const unlisten = await listen<T>('event-name', (e) => { ... });
 
 ## 安全
 
-- **allowlist**：在 `tauri.conf.json` 中按需开启 `fs`、`shell` 等，并设置 `scope`
+- **Tauri 2 权限**：在 `src-tauri/capabilities/` 中配置插件权限，在 `tauri.conf.json` 中配置 CSP；按需缩小 scope，不使用 Tauri 1 的 allowlist。
 - **命令参数**：校验类型、长度、业务规则；路径类参数做规范化与白名单校验
 
 ## 开发与构建

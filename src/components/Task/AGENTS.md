@@ -1,64 +1,11 @@
-# Task Components
+# Task Component Guidelines
 
-**Scope:** `src/components/Task/` - Task management UI
+## Responsibilities
 
-## OVERVIEW
+`TaskList.tsx` provides creation controls, task grouping, drag ordering and recursive subtask rendering. It is a normal scrolling list, not a virtualized list. `TaskItem.tsx` renders task rows; `TaskDetail.tsx` edits details; `TaskContextMenu.tsx` handles contextual actions. `ReminderManager.tsx` checks reminders while the app is open and displays local UI.
 
-Largest component folder (8 files) - all task-related rendering, interaction, and context menus.
+## Changes
 
-## WHERE TO LOOK
+Use task hooks for mutations, `utils/priority.ts` for priority styling, and `utils/date.ts` for date display. Preserve task IDs, parent-child relationships, trash/restore semantics and offline queue persistence. Consult actual component props instead of copying hypothetical examples.
 
-| File | Purpose | Size |
-|------|---------|------|
-| `TaskList.tsx` | Virtualized/scrolled task list | Medium |
-| `TaskItem.tsx` | Individual task row with checkbox | Small |
-| `TaskDetail.tsx` | Right panel task editor | Large |
-| `TaskForm.tsx` | Create/edit task form | Medium |
-| `TaskContextMenu.tsx` | Right-click actions menu | Small |
-| `ReminderManager.tsx` | Reminder UI logic | Medium |
-
-## CONVENTIONS
-
-### TaskItem Pattern
-```tsx
-<TaskItem
-  task={task}
-  onComplete={toggleTask}
-  onClick={() => setActiveTask(task)}
-  priority={task.priority} // High/Medium/Low/None color coding
-/>
-```
-
-### Priority Colors
-- `High`: Red accent
-- `Medium`: Orange accent
-- `Low`: Blue accent
-- `None`: Gray
-
-### Context Menu Usage
-```tsx
-<TaskContextMenu
-  task={task}
-  onEdit={handleEdit}
-  onDelete={handleDelete}
-  onDuplicate={handleDuplicate}
-/>
-```
-
-## ANTI-PATTERNS
-
-- **NO** direct data mutation - use hooks for all changes
-- **NO** hardcoded priority colors - use `utils/priority.ts` helpers
-- **AVOID** nesting TaskItem inside another TaskItem (use flat list with parent_id)
-
-## NOTES
-
-### Subtask Rendering
-- Recursive component pattern for nested subtasks
-- Indentation indicates depth level
-- Max depth not enforced (consider adding)
-
-### Date Display
-- Use `utils/date.ts` for all date formatting
-- Relative dates ("Today", "Tomorrow") preferred in list view
-- Full dates in detail panel
+Repeated rules are saved and synchronized; automatic next-instance generation remains a planned task. Do not claim process-exit system notifications or virtual scrolling until implemented and validated. Test changed creation, editing, completion and nested-task interactions. Run the frontend build and relevant sync tests.

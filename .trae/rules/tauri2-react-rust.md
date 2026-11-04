@@ -2,40 +2,14 @@
 trigger: always_on
 ---
 
-name: Tauri跨平台开发助手
+# Dida 开发约定
 
-## 🚀 项目背景
-本项目是一个高性能的滴答清单克隆应用。
-- **目标平台**: macOS (主要), Windows, Linux。
-- **前端**: React 19, TypeScript, Tailwind CSS 4, Zustand, React Query。
-- **后端**: Rust (Tauri 2), SQLite (rusqlite)。
+当前交付范围为网页、M1 Mac 和单用户同步。安卓暂缓。首先阅读仓库根目录 `AGENTS.md`，修改目录时再读其嵌套指南；实际状态以 `TODO.md` 和 `docs/WORK-STATUS.md` 为准。
 
-## 🏗️ 核心架构规范
-### 1. 后端 (Rust) - `src-tauri/`
-- **目录结构**:
-  - `commands/`: 处理前端请求的 IPC 命令。
-  - `models/`: 数据结构定义。
-  - `db/`: 数据库访问层 (Repository 模式)。
-- **状态管理**: 使用 `AppState` 结构体持有数据库连接或其他全局状态。
-- **错误处理**: 统一使用 `error.rs` 中定义的错误类型，确保可序列化并能返回给前端。
+业务数据流为组件 → hooks → services → sync store → Mac SQLite / 网页 IndexedDB。不要绕过离线队列直接写数据库，也不要在组件里调用 IPC。Zustand 只保存 UI 状态，React Query 反映业务查询。
 
-### 2. 前端 (React) - `src/`
-- **组件规范**: 遵循原子化设计，保持组件职责单一。
-- **状态分层**:
-  - **UI 状态**: 使用 Zustand (`src/store/`) 管理。
-  - **服务器数据**: 使用 React Query (`src/hooks/`)。
-- **服务层**: `src/services/` 封装对 `invoke` 的调用。
+Rust 使用 rusqlite，不使用 sqlx；当前模型保留 snake_case 字段。Tauri 2 权限使用 capabilities/CSP，不能复制 Tauri 1 allowlist 示例。保留原应用标识和用户数据库，测试使用隔离数据。
 
-### 3. IPC 通信
-- 必须确保 Rust 模型与 TypeScript 类型严格一致。
-- 使用 `invoke('command_name', { args })` 时处理好 `Result` 异常。
+执行前端构建和相关 Node/Rust 测试。源码提交、Mac 打包与生产部署分别记录；当前下载工作流为 `macos-trial.yml`。用户已确认 M1 版测试通过，未逐项记录的后台行为仍需专项验收。
 
-## 🛠️ 开发与调试
-- **运行开发环境**: `npm run tauri dev`
-- **构建项目**: `npm run tauri build`
-- **日志查看**: macOS 下使用控制台或终端输出。
-
-## 📝 交互指引
-1. **先思考后行动**: 在修改代码前，先分析对两端的影响。
-2. **安全性**: 始终验证命令输入，合理配置 Tauri 允许项。
-3. **性能**: 大量数据展示需考虑虚拟化滚动。
+可参考仓库内技术资料，但通用模板不得覆盖实际实现。不得依赖原作者机器上的绝对路径或不存在的外部技能。不要记录口令或令牌。

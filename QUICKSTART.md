@@ -1,160 +1,38 @@
-# 快速启动指南
+# 快速开始
 
-## 🚀 启动应用
+## 使用 M1 应用
 
-### 方式 1：开发模式（推荐用于开发）
+从 [已验证构建](https://github.com/motor820/dida/actions/runs/41673984772) 的 Artifacts 下载 Apple Silicon 安装包，打开 DMG 并拖到“应用程序”。首次可选择“先离线使用，稍后登录同步”。用户已于 2026-11-04 确认 M1 测试通过。
+
+同步地址为 https://dida.aiking.net:888/，当前部署用户名 `motordida`，使用你自行修改后的密码。密码不记录在仓库中。签名、下载有效期与迁移限制见 [使用说明](docs/WEB-MACOS.md)。
+
+## 源码开发
+
+使用 Node.js 24、npm 和 Rust stable；Mac 需 Xcode Command Line Tools。在源码仓库根目录执行：
+
 ```bash
-cd /Users/akm/JieYueAI/dida-clone
-npm run tauri dev
+npm ci
+npm run test:sync
+npm run build
+cargo test --locked --manifest-path crates/local-store/Cargo.toml
+cargo test --locked --manifest-path server/Cargo.toml
 ```
 
-这将：
-1. 启动 Vite 开发服务器（前端）
-2. 编译 Rust 后端
-3. 打开应用窗口
-4. 支持热重载
+Mac 桌面调试：`npm run tauri dev`。浏览器调试：`npm run dev`，Vite 端口为 1420，API 使用同源 `/api/v1/`，开发环境需自行配置 API 反向代理。部署机的旧版网页已占用 1420，开发时应使用独立机器或先安排端口方案，不能随意停止服务。
 
-### 方式 2：构建生产版本
+M1 本地打包：
+
 ```bash
-cd /Users/akm/JieYueAI/dida-clone
-npm run tauri build
+rustup target add aarch64-apple-darwin
+APPLE_SIGNING_IDENTITY=- npm run tauri build -- --target aarch64-apple-darwin --bundles app,dmg
 ```
 
-构建产物位于：`src-tauri/target/release/bundle/`
+产物位于 `src-tauri/target/aarch64-apple-darwin/release/bundle/`。GitHub 当前使用 `macos-trial.yml` 做同样的目标构建。
 
----
+## 数据保护与排查
 
-## 📋 首次使用
+Mac 数据库为 `~/Library/Application Support/com.akm.dida-clone/dida.db`，当前业务状态及队列保存在 `sync_local_state`；旧关系表保留供导入。网页使用 IndexedDB，不能按旧文档仅检查 localStorage。
 
-1. **启动应用**：运行 `npm run tauri dev`
-2. **查看智能清单**：左侧边栏显示5个默认清单
-   - 📥 收集箱
-   - 📅 今天
-   - 📆 最近7天
-   - 📋 所有任务
-   - ✅ 已完成
-3. **添加任务**：在底部输入框输入任务标题，按回车
-4. **完成任务**：点击任务前的圆圈
-5. **查看详情**：点击任务查看右侧详情面板
+遇到数据问题先导出备份并保留原库，不通过删除数据库排查。退出登录前先同步或导出未上传变更。正式服务配置和恢复方法见 [部署说明](docs/deployment/operations.md)。
 
----
-
-## 🔧 故障排除
-
-### 问题：npm run tauri dev 失败
-
-**解决方案 1：检查 Rust 安装**
-```bash
-rustc --version
-# 应该显示：rustc 1.91.0 或更高版本
-```
-
-如果未安装 Rust：
-```bash
-curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
-source ~/.cargo/env
-```
-
-**解决方案 2：清理并重新安装**
-```bash
-cd /Users/akm/JieYueAI/dida-clone
-rm -rf node_modules
-npm install
-cd src-tauri
-cargo clean
-cd ..
-npm run tauri dev
-```
-
-### 问题：前端编译错误
-
-**解决方案：重新安装依赖**
-```bash
-npm install -D @tailwindcss/postcss tailwindcss postcss autoprefixer
-npm install @tanstack/react-query zustand date-fns lucide-react
-```
-
-### 问题：数据库错误
-
-数据库文件位置：
-- macOS: `~/Library/Application Support/com.akm.dida-clone/dida.db`
-
-如果需要重置数据库，删除该文件后重启应用。
-
----
-
-## 📊 开发工具
-
-### 查看数据库
-```bash
-# 安装 SQLite（如果未安装）
-brew install sqlite
-
-# 打开数据库
-sqlite3 ~/Library/Application\ Support/com.akm.dida-clone/dida.db
-
-# 查看表
-.tables
-
-# 查看任务
-SELECT * FROM tasks;
-
-# 查看清单
-SELECT * FROM lists;
-
-# 退出
-.quit
-```
-
-### 查看日志
-应用日志会输出到终端，运行 `npm run tauri dev` 时可以看到。
-
----
-
-## 🎯 快速测试
-
-### 测试任务管理
-1. 启动应用
-2. 选择"收集箱"清单
-3. 添加几个测试任务
-4. 点击圆圈标记任务完成
-5. 点击任务查看详情
-
-### 测试清单切换
-1. 点击左侧不同的清单
-2. 观察任务列表的变化
-3. 切换到"已完成"查看完成的任务
-
----
-
-## 📝 开发建议
-
-### 修改代码后
-- **前端修改**：保存后自动热重载
-- **后端修改**：需要重启应用（Ctrl+C 然后重新运行）
-
-### 推荐的开发流程
-1. 修改前端代码（src/）
-2. 保存并查看效果
-3. 修改后端代码（src-tauri/src/）
-4. 重启应用测试
-
----
-
-## 🐛 已知问题
-
-1. **任务创建**：当前只能输入标题，完整表单待实现
-2. **智能清单**：过滤逻辑待实现（显示所有任务）
-3. **搜索功能**：UI 已有但功能待实现
-
----
-
-## 📞 获取帮助
-
-- 查看 [ARCHITECTURE.md](./ARCHITECTURE.md) 了解架构设计
-- 查看 [TODO.md](./TODO.md) 了解开发进度
-- 查看 [README.md](./README.md) 了解项目概况
-
----
-
-**祝你使用愉快！** 🎉
+今日待办见 [TODO.md](TODO.md)，已知范围与验证结果见 [工作状态](docs/WORK-STATUS.md)。

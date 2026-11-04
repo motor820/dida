@@ -37,7 +37,7 @@ RustSec 公告库来自官方 https://github.com/RustSec/advisory-db 的当前�
 当前跨平台 Cargo.lock 仍包含 Linux GTK 路径的 glib（RUSTSEC-2024-0429，unsound）、glib/gtk 宏依赖 proc-macro-error（RUSTSEC-2024-0370，unmaintained），以及单实例插件 Linux D-Bus 路径中的 zbus_names/zvariant/zvariant_derive（unmaintained）。它们按依赖的平台限制不属于本次 Mac 构建目标；CI 会额外检查实际 Mac 目标依赖树，若进入构建则阻止打包。它们也不在独立服务端依赖中；完整扫描报告保留这些警告，未静默忽略。若后续制作 Linux 桌面包，必须重新处理对应风险。
 
 这不是对所有依赖源代码的逐行证明，也不能保证未来不会发现漏洞；没有进行第三方渗透测试、形式化验证或安卓审计。当前结果表示在所记录版本和检查范围内修复了已发现问题，并通过了所列测试。
-Mac 运行、离线数据与原生窗口交互最终仍需在用户真机验收；CI 编译与启动检查不等于完整真机功能验收。
+2026-11-04 用户确认 M1 版本测试通过。未提供逐项场景，CI 编译与启动检查也不能代替未记录场景的专项验收。
 
 ## 回归验证
 

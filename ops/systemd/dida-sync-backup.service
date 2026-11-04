@@ -1,0 +1,8 @@
+[Unit]
+Description=Dida consistent SQLite and configuration backup
+
+[Service]
+Type=oneshot
+ExecStart=%h/dida/ops/backup.sh
+UMask=0077
+NoNewPrivileges=true

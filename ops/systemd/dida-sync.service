@@ -1,0 +1,17 @@
+[Unit]
+Description=Dida authenticated web and synchronization API
+After=network.target
+
+[Service]
+Type=simple
+EnvironmentFile=%h/dida/private/environment
+WorkingDirectory=%h/dida/runtime
+ExecStart=%h/dida/runtime/dida-sync-server
+Restart=on-failure
+RestartSec=3
+UMask=0077
+NoNewPrivileges=true
+TimeoutStopSec=30
+
+[Install]
+WantedBy=default.target
