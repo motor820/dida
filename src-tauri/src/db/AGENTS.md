@@ -1,95 +1,15 @@
-# Database Layer
+# Legacy Checkout Guidelines
 
-**Scope:** `src-tauri/src/db/` - SQLite repository pattern
+本目录属于 Dida 0.1 旧局域网代码，分支 legacy/lan-web。最新 Dida 0.2 网页、Mac、同步与 MCP 文档见 [新版索引](../../../../worktrees/web-macos-sync/docs/index.md)；不要在旧目录实现新版需求。
 
-## OVERVIEW
+## 当前旧版实现
 
-Repository pattern for SQLite data access. Async queries with `sqlx` + `tokio`.
+React/TypeScript 在 src/，Tauri/Rust 在 src-tauri/。旧 services 根据环境走原生 IPC 或 localStorage；它没有新版 IndexedDB/outbox、同步 API 或 MCP。数据库用 rusqlite 和 Arc<Mutex<Connection>>，没有 sqlx 连接池。序列化字段保留 snake_case，已有 services/types 的 index.ts 导出。
 
-## STRUCTURE
+## 修改与验证
 
-```
-db/
-├── connection.rs   # Pool initialization, migrations
-├── task_repo.rs    # 14KB - largest file (split recommended)
-├── list_repo.rs    # List CRUD operations
-├── tag_repo.rs     # Tag CRUD operations
-└── mod.rs          # Module exports
-```
+先读此 checkout 的根 AGENTS.md 及相关嵌套指南。组件经 hooks/services 调用；SQL 绑定参数，不在组件直调 IPC。保留用户现有浏览器数据和本地数据库。旧源码维护补丁及旧浏览器导出页已保存到新版 ops/legacy-export/。
 
-## WHERE TO LOOK
+旧版脚本为 npm run dev / build / tauri；部署机 Vite 1420 已供旧网页使用，不能再启动冲突实例。旧库/原生路径并未自动接入新版同步，数据通过显式导出导入迁移。旧版没有新版测试脚本，不能照抄 test:mcp 或 test:recurrence 到这里执行。
 
-| Operation | File | Key Functions |
-|-----------|------|---------------|
-| Task CRUD | `task_repo.rs` | `create`, `get_by_id`, `update`, `delete`, `toggle_complete` |
-| List CRUD | `list_repo.rs` | `create`, `get_all`, `update`, `delete` |
-| Tag CRUD | `tag_repo.rs` | `create`, `get_all`, `delete`, `attach_to_task` |
-| Pool setup | `connection.rs` | `init_pool`, `run_migrations` |
-
-## CONVENTIONS
-
-### Repository Structure
-```rust
-pub struct TaskRepo {
-    pool: SqlitePool,
-}
-
-impl TaskRepo {
-    pub fn new(pool: SqlitePool) -> Self { ... }
-
-    pub async fn create(&self, task: Task) -> Result<Task, AppError> {
-        let sql = "INSERT INTO tasks ... RETURNING *";
-        sqlx::query_as(sql)
-            .bind(&task.title)
-            .fetch_one(&self.pool)
-            .await
-            .map_err(AppError::from)
-    }
-}
-```
-
-### SQL Queries
-- Use `sqlx::query_as` for type-safe queries
-- Use `?` for error propagation
-- Use `bind()` for parameter binding (no string concat)
-- Always order by `order_num` for list queries
-
-### Connection Pool
-```rust
-// AppState setup
-let pool = SqlitePool::connect(&db_url).await?;
-AppState { pool }
-```
-
-## ANTI-PATTERNS
-
-- **NEVER** use raw string SQL without parameters - always bind
-- **NEVER** leave connections unclosed - use `sqlx` pool (auto-managed)
-- **DO NOT** mix sync/async DB calls - always use `.await`
-- **AVOID** N+1 queries - use JOINs for related data
-- **AVOID** raw SQL injection - use `bind()` everywhere
-
-## NOTES
-
-### Database Schema
-See tables: `tasks`, `lists`, `tags`, `task_tags` with indexes on `list_id`, `parent_id`, `due_date`
-
-### Migrations
-Current: Single migration in `connection.rs` creating all tables. Consider moving to `migrations/` folder for version control.
-
-### File Size Warning
-`task_repo.rs` is 14KB - split trait recommended:
-```rust
-// Split by operation type
-mod task_repo {
-    mod create { ... }
-    mod read { ... }
-    mod update { ... }
-    mod delete { ... }
-}
-```
-
-### Testing Considerations
-- Use in-memory SQLite for unit tests: `sqlite::memory:`
-- Integration tests should use temp file database
-- Clean up test data between tests
+原项目早期的泛化模板和功能清单仅作历史，不是现行实现或操作依据。新增开发在 worktrees/web-macos-sync/ 完成；本 checkout 的维护改动应按旧版分支单独保存。
