@@ -2,7 +2,7 @@
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "Dida",
   "mainBinaryName": "Dida",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "identifier": "com.akm.dida-clone",
   "build": {
     "beforeDevCommand": "npm run dev",
