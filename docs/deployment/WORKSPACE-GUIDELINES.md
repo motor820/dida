@@ -4,10 +4,10 @@
 
 This directory is a deployment workspace; Git history lives in the application checkouts.
 
-- `app/`: legacy application checkout on `main`.
+- `app/`: legacy application checkout on `legacy/lan-web`.
 - `worktrees/web-macos-sync/`: current web, macOS, and synchronization development worktree. Manage it with `git worktree`.
 - Within each checkout, `src/` contains React/TypeScript components, hooks, services, stores, and types; `src-tauri/` contains the Rust desktop backend; `public/` holds static assets.
-- The sync worktree additionally contains `server/` (Rust/Axum API) and `tests/sync.test.ts`.
+- The current worktree also contains `server/` (Rust API), `mcp/` (Node 24 stdio adapter), `integrations/` (Rona skill), and `tests/`.
 - `docs/` contains deployment and recovery documentation; `ops/` contains maintenance scripts and systemd units.
 - `runtime/`, `data/`, `backups/`, and `private/` contain deployed artifacts and local state.
 
@@ -20,6 +20,8 @@ Run application commands from `worktrees/web-macos-sync/`, unless maintaining th
 - `npm ci`: install locked frontend dependencies.
 - `npm run dev`: start the Vite development server.
 - `npm run build`: type-check TypeScript and build production web assets.
+- `npm run test:tasks` and `npm run test:recurrence`: test ordering and repeated tasks.
+- `npm ci --prefix mcp` and `npm run test:mcp`: install/test the MCP adapter; first build the debug API with `cargo build --manifest-path server/Cargo.toml`.
 - `npm run tauri dev`: run the desktop application locally.
 - `npm run tauri build`: build desktop release bundles.
 - `npm run test:sync`: run TypeScript synchronization tests.
@@ -33,7 +35,7 @@ Match surrounding code: TypeScript uses two-space indentation, single quotes, an
 
 ## Testing Guidelines
 
-Sync tests use Node's TypeScript stripping support; server tests use Rust's built-in harness and Tokio. Add sync cases in `tests/*.test.ts` and Rust cases alongside relevant modules. No coverage threshold is configured. Run relevant tests and the frontend build; document manual UI, offline-sync, and macOS checks when applicable.
+Node tests cover sync, ordering and recurrence; Rust tests use the built-in harness and Tokio. MCP tests use a real isolated API, and Python Playwright scripts cover browser interactions. Add sync cases in `tests/*.test.ts` and Rust cases alongside relevant modules. No coverage threshold is configured. Run relevant tests and the frontend build; document manual UI, offline-sync, and macOS checks when applicable.
 
 ## Commit & Pull Request Guidelines
 

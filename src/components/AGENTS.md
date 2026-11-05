@@ -10,4 +10,6 @@ Use PascalCase filenames, typed props, existing Tailwind classes and CSS variabl
 
 ## Verification
 
-Run `npm run build` and check changed interactions manually. No component testing framework is configured. Search and calendar navigation currently expose unfinished views; do not describe them as complete. System reminders after process exit are outside current functionality. Keep `TODO.md` aligned with delivered behavior.
+Run `npm run build` and check changed interactions manually. Python Playwright browser regressions exist; Vitest/React Testing Library are not configured. Search and calendar navigation currently expose unfinished views; do not describe them as complete. System reminders after process exit are outside current functionality. Keep `TODO.md` aligned with delivered behavior.
+
+`Layout/NavRail.tsx` owns bottom-left sync/settings controls and opens `SyncPanel` through a portal; `SyncGate` only initializes and gates login. There is no top sync/status row.

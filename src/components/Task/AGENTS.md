@@ -8,4 +8,6 @@
 
 Use task hooks for mutations, `utils/priority.ts` for priority styling, and `utils/date.ts` for date display. Preserve task IDs, parent-child relationships, trash/restore semantics and offline queue persistence. Consult actual component props instead of copying hypothetical examples.
 
-Repeat rules are saved and synchronized; browser completion generates the next instance and checklist in one offline transaction. The date picker stages edits until confirmation; context-menu tooltips must appear immediately. Date pickers and context menus share Common/DateShortcuts.tsx so the four date icons and labels stay consistent. Do not claim process-exit system notifications or virtual scrolling until implemented and validated. Test changed creation, editing, completion and nested-task interactions. Run the frontend build and relevant sync tests.
+Repeat rules are saved and synchronized; shared client completion generates the next instance and checklist in one offline transaction. The date picker stages edits until confirmation; context-menu tooltips must appear immediately. Date pickers and context menus share Common/DateShortcuts.tsx so the four date icons and labels stay consistent. Do not claim process-exit system notifications or virtual scrolling until implemented and validated. Test changed creation, editing, completion and nested-task interactions. Run the frontend build and relevant sync tests.
+
+Subtask titles, description and checklist text use 14px in view/edit states; root task list titles use 16px bold.

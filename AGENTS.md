@@ -25,7 +25,7 @@ Match surrounding indentation and formatting. Use PascalCase component names, `u
 
 ## Testing Guidelines
 
-Add `tests/*.test.ts` sync cases or Rust `#[test]`/`#[tokio::test]` cases for changed behavior. Use isolated data. Run relevant tests and the frontend build. No coverage threshold, ESLint, Prettier, or UI test framework is configured. Preserve pending changes and regression coverage against startup data loss.
+Add `tests/*.test.ts` sync cases or Rust `#[test]`/`#[tokio::test]` cases for changed behavior. Use isolated data. Run relevant tests and the frontend build. No coverage threshold, ESLint, Prettier, Vitest, or React Testing Library is configured. Python Playwright scripts provide browser regressions. Preserve pending changes and regression coverage against startup data loss.
 
 ## Commit & Pull Request Guidelines
 

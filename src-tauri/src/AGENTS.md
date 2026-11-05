@@ -13,3 +13,5 @@ Use rusqlite with `Arc<Mutex<Connection>>`; there is no sqlx pool. Preserve `com
 Keep native credentials in Keychain and out of JavaScript, logs, and Git. Native requests use the fixed HTTPS service host without redirects. Retain CSP, single-instance behavior and local permissions.
 
 Run the local-store and server Cargo tests plus relevant frontend checks. ARM64 CI packaging, Intel startup checks, and M1 user acceptance are distinct evidence. User reported M1 tests passed on 2026-11-04; detailed scenarios were not supplied. Do not claim untested background notification behavior.
+
+`productName` and `mainBinaryName` are Dida. Preserve the bundle identifier and Keychain service. Build/install status is tracked in docs/RELEASES.md; old packages do not update themselves.

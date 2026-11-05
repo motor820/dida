@@ -1,5 +1,7 @@
 # DIDA 浏览器任务交互验收
 
+> 历史验收：本文记录对应阶段的行为和测试结果，“尚未打包/未实现”等表述仅描述当时状态。当前功能以 [WEB-MACOS.md](WEB-MACOS.md) 和 [TODO.md](../TODO.md) 为准，后续安装包见 [RELEASES.md](RELEASES.md)。
+
 日期：2026-11-04。范围：网页与共享 React 组件；macOS 专项 review 和打包等待用户完成浏览器验收。
 
 ## 行为约定

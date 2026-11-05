@@ -1,3 +1,13 @@
+diff --git a/README.md b/README.md
+index a7bedc6..33e3261 100644
+--- a/README.md
++++ b/README.md
+@@ -1,3 +1,5 @@
++> **旧版局域网代码与文档（legacy/lan-web）**：本 checkout 保留旧网页及维护改动。当前 Dida 网页、Mac、同步与 MCP 的代码和说明在 [新版 README](../worktrees/web-macos-sync/README.md)，请以新版 [文档索引](../worktrees/web-macos-sync/docs/index.md) 为准。下面原文只描述旧版代码。
++
+ # 滴答清单克隆 (TickTick Clone)
+ 一个使用 Tauri + React + TypeScript 开发的跨平台任务管理应用，模仿滴答清单的核心功能。
+
 diff --git a/package-lock.json b/package-lock.json
 index d40e627..193e86b 100644
 --- a/package-lock.json

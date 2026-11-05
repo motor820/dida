@@ -1,57 +1,51 @@
 # Dida
 
-基于 Tauri 2、React 19、TypeScript 和 Rust 的个人任务管理应用。当前版本 **0.2.0**，交付网页、Apple Silicon Mac 桌面端和单用户自建同步服务。
+个人待办应用，当前应用版本 **0.2.0**。网页与 Apple Silicon Mac 共用 React 19 / TypeScript 界面和业务逻辑，Tauri 2 提供桌面能力，Rust/Axum + SQLite 提供单用户同步；Rona 通过 MCP 管理同一份待办。
 
-## 当前状态
+## 已实现
 
-- 任务增删改查、子任务、智能清单、自定义清单、标签、拖拽排序和回收站已实现。
-- Mac 使用本机 SQLite，可先离线使用，登录后与网页同步；网页使用 IndexedDB，首次访问需要登录，已打开页面可断网编辑、重连补传。
-- 支持 JSON 导入导出、旧数据显式迁移、设备会话管理及修改密码。
-- GitHub Actions 已生成 ARM64 APP ZIP 和 DMG；用户已于 **2026-11-04 确认 M1 版本测试通过**。具体测试场景未逐项记录，不将其扩展为所有场景的验收结论。
-- 重复规则可以设置和同步，但自动生成下一次任务尚未完整实现；提醒仅在应用打开时提示。
-- 搜索、高级过滤、日历视图、深色模式及大列表虚拟滚动尚未完成。安卓暂缓开发。
+- 任务、子任务、清单、标签、日期、优先级、回收站及 JSON 导入导出。
+- 原位多行编辑、Enter 续建、描述/检查事项切换、日期排序及响应式详情抽屉。
+- 按天/周/月/季度/年和自定义公历重复；完成后原子生成下一期及检查项，处理离线重试与并发去重。
+- Mac SQLite 离线保存，网页 IndexedDB 断网编辑与重连同步；登录、改密、设备撤销和旧数据显式迁移。
+- 左下角刷新按钮立即同步，下面的设置按钮打开账号、设备和导入导出；顶部状态行已删除。第三栏子任务与描述使用 14px，第二栏标题 16px 粗体。
+- 12 个 stdio MCP 工具及 Rona 的轻量 dida-tasks skill。
 
-完整状态与下一步任务以 [TODO.md](TODO.md) 为准；本次基线见 [工作记录](docs/WORK-STATUS.md)。
+搜索/高级过滤、日历视图、深色模式、大列表虚拟滚动、退出后的系统通知尚未完成；安卓暂缓。准确待办见 [TODO.md](TODO.md)。
 
-## 使用与下载
+## 使用
 
-- 网页：<https://dida.aiking.net:888/>
-- 当前部署用户名：`motordida`；密码由使用者维护，不进入 Git。
-- [已验证的 M1 构建](https://github.com/motor820/dida/actions/runs/41673984772)，在 Artifacts 下载 `dida-clone-macOS-Apple-Silicon`，包含 DMG 与 APP ZIP。该次产物保留至 2026-11-17 16:52 UTC；过期后需重新构建。
-- 打开 DMG，将应用拖入“应用程序”。当前使用 ad-hoc 签名，尚无 Apple 公证；若被拦截，在系统设置的“隐私与安全”中选择“仍要打开”。
+网页：<https://dida.aiking.net:888/>。当前部署用户名 `motordida`，密码由使用者维护，不进入 Git。
 
-服务器持有同步任务明文，当前没有端到端加密。退出登录会清理本机缓存，先同步或导出未上传的数据。详见 [使用与迁移说明](docs/WEB-MACOS.md)。
+Mac 应用为 **Dida.app**，可先离线使用，再登录同步。下载入口与对应提交见 [构建交付记录](docs/RELEASES.md)，在 GitHub Actions 的 Artifacts 下载 `Dida-macOS-Apple-Silicon`。安装包包括 DMG、APP ZIP、COMMIT.txt 和校验和，保留 14 天。当前 ad-hoc 签名，尚无 Apple 公证；被系统拦截时到“隐私与安全”选择“仍要打开”。
+
+macOS 钥匙串授权框需要 Mac 登录/钥匙串密码；Dida 登录框需要 Dida 账号密码。操作与迁移说明见 [WEB-MACOS.md](docs/WEB-MACOS.md)。服务器持有同步任务明文，当前没有端到端加密；退出登录前先同步或导出待上传数据。
 
 ## 开发与验证
 
-Node.js 24（与 CI 一致）、npm、Rust stable；Mac 桌面构建还需 Xcode Command Line Tools。从源码仓库根目录运行：
+Node.js 24、npm、Rust stable；Mac 需 Xcode Command Line Tools。在本源码根目录执行：
 
 ```bash
 npm ci
+npm ci --prefix mcp
 npm run test:sync
+npm run test:tasks
+npm run test:recurrence
 npm run build
 cargo test --locked --manifest-path crates/local-store/Cargo.toml
 cargo test --locked --manifest-path server/Cargo.toml
-npm run dev
+cargo build --locked --manifest-path server/Cargo.toml
+npm run test:mcp
 ```
 
-`npm run dev` 启动 Vite 1420 端口，不自动启动 API。浏览器 API 使用同源路径；独立调试需要另配开发反向代理。部署机的旧网页已占用 1420，不能直接再启动同端口实例。在 Mac 上用 `npm run tauri dev` 调试桌面端。
+MCP 集成测试需要上一步的独立 API debug 可执行文件；测试自己创建临时数据库和随机凭据。浏览器测试还需 Python Playwright 和 Chrome，见 [验收说明](docs/WEB-TASK-ACCEPTANCE.md)。
 
-M1 打包命令：`npm run tauri build -- --target aarch64-apple-darwin --bundles app,dmg`。当前下载工作流为 `.github/workflows/macos-trial.yml`，显式指定 ARM64；旧 `release.yml` 仅保留历史标签发布方式，尚未作为本阶段正式发布流程验收。
+`npm run dev` 启动 Vite 1420，不自动代理 API；开发机浏览器需另配同源 API 代理。部署机该端口已供旧网页使用，使用独立端口或机器。在 Mac 用 `npm run tauri dev` 调试；M1 构建命令是 `npm run tauri build -- --target aarch64-apple-darwin --bundles app,dmg`。
 
-## 代码与文档
+## 结构与文档
 
-- `src/`：React UI、服务层及 `sync/` 离线同步核心。
-- `src-tauri/`：桌面 IPC、Keychain、原生 HTTP 和旧数据库兼容层。
-- `crates/local-store/`：SQLite 原子保存与回归测试。
-- `server/`：Axum 认证、同步 API 和 SQLite 数据库。
-- `tests/`：Node 同步核心测试；`ops/`：运维脚本与旧数据导出工具。
-- [快速开始](QUICKSTART.md) · [架构](ARCHITECTURE.md) · [贡献指南](AGENTS.md) · [安全审计](docs/SECURITY-REVIEW.md) · [部署资料](docs/deployment/index.md)
+`src/` 为共享前端与同步逻辑；`src-tauri/` 为桌面适配；`crates/local-store/` 为原子存储；`server/` 为 API；`mcp/` 为 MCP server；`integrations/` 为 Rona skill；`tests/` 为回归；`ops/` 为运维源码。
 
-源码仓库为 <https://github.com/motor820/dida>，原始代码来自 `jameingh/dida-clone`。许可文件见 [LICENSE](LICENSE)。
+[文档索引](docs/index.md) · [快速开始](QUICKSTART.md) · [架构](ARCHITECTURE.md) · [接手状态](docs/WORK-STATUS.md) · [MCP](docs/MCP.md) · [贡献指南](AGENTS.md)
 
-## MCP 与 Rona
-
-已提供 stdio Dida MCP，支持待办、子任务、清单和标签管理，并接入本机 OpenClaw。安装依赖 `npm ci --prefix mcp`，验证 `npm run test:mcp`，配置与会话维护见 [MCP.md](docs/MCP.md)。Rona 使用 [dida-tasks skill](integrations/openclaw/dida-tasks/SKILL.md) 调用工具。新待办统一放入 Dida，旧 personalrepo 记录不会自动搬迁。
-
-同步刷新入口已移至左下角设置按钮上方，账号、设备和导入导出由设置按钮打开；页面顶部状态行已删除。
+维护仓库：<https://github.com/motor820/dida>，原代码来自 `jameingh/dida-clone`，许可见 [LICENSE](LICENSE)。仓库当前仍公开；用户已决定私有化稍后自行处理。本机部署数据、凭据、备份和运行产物不进入 Git。

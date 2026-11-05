@@ -4,7 +4,7 @@
 
 | 目录 | 用途 |
 |---|---|
-| app/ | 原主仓库，分支 main；也是旧版局域网网页的源码目录 |
+| app/ | 原主仓库，分支 legacy/lan-web；也是旧版局域网网页的源码目录 |
 | worktrees/web-macos-sync/ | Git 关联工作树，分支 feature/web-macos-sync；当前新版网页、Mac 和同步服务源码 |
 | docs/ | 本机部署、运维、备份、迁移验收等统一文档 |
 | ops/ | 运维入口、备份脚本、面板辅助脚本 |
@@ -12,7 +12,7 @@
 | runtime/ | 正式同步服务二进制、网页发布版本和 web 链接 |
 | data/ | 正式 SQLite 数据库及其 WAL/SHM 文件 |
 | backups/ | 每日及手动备份，最多保留最近 14 个完整配对 |
-| private/ | 环境变量、初始凭据、迁移前回退快照；目录 700、普通文件 600 |
+| private/ | 环境变量、初始凭据、MCP 会话、OpenClaw 接入前备份、迁移前回退快照；目录 700、普通文件 600 |
 | archive/ | 早期构建配置留档 |
 
 `app` 和开发工作树仍使用原有 Git 关系。不要随意直接移动或删除其中任何一个；关联工作树使用 git worktree 管理。
@@ -27,3 +27,5 @@
 - Node、Rust 等共享工具及缓存仍在用户标准工具目录。
 
 数据、凭据、备份和运行产物由项目根 .gitignore 排除，不得提交 Git。
+
+新版源码的 mcp/ 提供 MCP server，integrations/openclaw/ 保存 Rona skill 源码；本机技能安装在 ~/.openclaw/workspace/skills/dida-tasks/。本地 main 与开发分支跟随维护远端，app/ 的旧代码保留于 legacy/lan-web；原有维护改动及导出页未被替换。

@@ -36,7 +36,7 @@ systemctl --user restart dida-sync-backup.timer
 
 不要并行手工启动另一个正式服务器，以免端口冲突或访问同一数据库。
 正式服务使用 runtime/ 的程序和网页，修改源码不会自动上线。
-更新时先备份，构建与验证新版本，再替换正式产物并重启验收；旧网页版本保留在 runtime/releases/。
+更新时先备份，构建与验证新版本，再切换正式产物。纯静态网页发布切换 runtime/web，验证服务实际返回新 index/资源即可；替换 API 二进制或服务配置后按需重启验收。旧网页版本保留在 runtime/releases/。
 
 ## 配置与故障排查
 
@@ -50,3 +50,7 @@ systemctl --user restart dida-sync-backup.timer
 
 备份和恢复详见 backup-policy.md；回退迁移详见 migration-rollback.md。
 整机重启、Mac 真机和真实浏览器离线操作不属于本次终端迁移验收已完成的项目。
+
+## MCP / Rona
+
+Dida MCP 是 OpenClaw 按需启动的 stdio 子进程，不增加 systemd 服务或公网端口。安装与会话维护见源码 docs/MCP.md；会话文件为 private/mcp-session.json，只有显式维护脚本可重配。OpenClaw 配置热加载；Rona 下一次运行发现新目录，不因接入强制中断已有会话。

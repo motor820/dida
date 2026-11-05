@@ -105,6 +105,7 @@ jobs:
           app_path="src-tauri/target/aarch64-apple-darwin/release/bundle/macos/Dida.app"
           mkdir -p trial-downloads
           git rev-parse HEAD > trial-downloads/COMMIT.txt
+          node -e "const fs=require('node:fs');const c=JSON.parse(fs.readFileSync('src-tauri/tauri.conf.json','utf8'));fs.writeFileSync('trial-downloads/BUILD-INFO.json',JSON.stringify({productName:c.productName,version:c.version,identifier:c.identifier,revision:process.env.GITHUB_SHA,target:'aarch64-apple-darwin',builtAt:new Date().toISOString()},null,2)+'\n')"
           ditto -c -k --sequesterRsrc --keepParent "$app_path" trial-downloads/Dida-apple-silicon.app.zip
           cp src-tauri/target/aarch64-apple-darwin/release/bundle/dmg/*.dmg trial-downloads/
           cp docs/SECURITY-REVIEW.md trial-downloads/
@@ -117,7 +118,13 @@ jobs:
           Offline mode: select “先离线使用，稍后登录同步” on first launch.
           Sync service: https://dida.aiking.net:888/ (same account/password as the web).
           SQLite data is stored locally. Do not uninstall/remove app data before exporting a backup.
-          Existing local data can be imported explicitly in “账号与同步”.
+          Refresh/sync is the icon above Settings at the bottom left.
+          Settings opens account, devices, password, and import/export; the top status row is removed.
+          Current account: motordida. Use your current Dida password in the app login form.
+          A macOS Keychain dialog for net.aiking.dida.sync asks for your Mac login/keychain password.
+          Existing local data can be imported explicitly in Settings > 账号与同步.
+          BUILD-INFO.json and COMMIT.txt identify the exact source used for this package.
+          Rona's MCP adapter runs on the server and manages the same synchronized tasks.
           Android is not included in this phase.
           TEXT
       - name: Upload Mac installer

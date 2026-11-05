@@ -1,24 +1,28 @@
 # 快速开始
 
-## 使用 M1 应用
+## 使用 Mac / 网页
 
-从 [已验证构建](https://github.com/motor820/dida/actions/runs/41673984772) 的 Artifacts 下载 Apple Silicon 安装包，打开 DMG 并拖到“应用程序”。首次可选择“先离线使用，稍后登录同步”。用户已于 2026-11-04 确认 M1 测试通过。
+网页：<https://dida.aiking.net:888/>。账号 `motordida`，使用自己修改后的 Dida 密码。
 
-同步地址为 https://dida.aiking.net:888/，当前部署用户名 `motordida`，使用你自行修改后的密码。密码不记录在仓库中。签名、下载有效期与迁移限制见 [使用说明](docs/WEB-MACOS.md)。
+M1 安装包见 [交付记录](docs/RELEASES.md)：登录有仓库访问权限的 GitHub 账号，从 Actions 的 Artifacts 下载 `Dida-macOS-Apple-Silicon`。解压后打开 DMG，将 **Dida.app** 放入应用程序。初次可选择“先离线使用，稍后登录同步”。
+
+左下角刷新按钮立即同步，下方齿轮设置打开账号、设备和导入导出。macOS 弹出 `net.aiking.dida.sync` 钥匙串授权时，输入 Mac 登录/钥匙串密码；这与应用自己的登录密码不同。完整说明见 [WEB-MACOS.md](docs/WEB-MACOS.md)。
 
 ## 源码开发
 
-使用 Node.js 24、npm 和 Rust stable；Mac 需 Xcode Command Line Tools。在源码仓库根目录执行：
+Node.js 24、npm、Rust stable；Mac 安装 Xcode Command Line Tools：
 
 ```bash
 npm ci
 npm run test:sync
+npm run test:tasks
+npm run test:recurrence
 npm run build
 cargo test --locked --manifest-path crates/local-store/Cargo.toml
 cargo test --locked --manifest-path server/Cargo.toml
 ```
 
-Mac 桌面调试：`npm run tauri dev`。浏览器调试：`npm run dev`，Vite 端口为 1420，API 使用同源 `/api/v1/`，开发环境需自行配置 API 反向代理。部署机的旧版网页已占用 1420，开发时应使用独立机器或先安排端口方案，不能随意停止服务。
+`npm run tauri dev` 用于 Mac 桌面调试。`npm run dev -- --host 127.0.0.1 --port 1492` 可避开部署机已占用的 1420；浏览器 API 仍需同源反代，隔离回归脚本会自行模拟 API 或接入临时真实服务，见 [验收说明](docs/WEB-TASK-ACCEPTANCE.md)。
 
 M1 本地打包：
 
@@ -27,12 +31,18 @@ rustup target add aarch64-apple-darwin
 APPLE_SIGNING_IDENTITY=- npm run tauri build -- --target aarch64-apple-darwin --bundles app,dmg
 ```
 
-产物位于 `src-tauri/target/aarch64-apple-darwin/release/bundle/`。GitHub 当前使用 `macos-trial.yml` 做同样的目标构建。
+产物在 `src-tauri/target/aarch64-apple-darwin/release/bundle/`。GitHub 使用 `macos-trial.yml` 构建；精确源码提交保存在安装包 COMMIT.txt。
 
-## 数据保护与排查
+## MCP 开发
 
-Mac 数据库为 `~/Library/Application Support/com.akm.dida-clone/dida.db`，当前业务状态及队列保存在 `sync_local_state`；旧关系表保留供导入。网页使用 IndexedDB，不能按旧文档仅检查 localStorage。
+```bash
+npm ci --prefix mcp
+cargo build --locked --manifest-path server/Cargo.toml
+npm run test:mcp
+```
 
-遇到数据问题先导出备份并保留原库，不通过删除数据库排查。退出登录前先同步或导出未上传变更。正式服务配置和恢复方法见 [部署说明](docs/deployment/operations.md)。
+stdio 启动为 `npm run mcp`，需要配置 API 地址与独立会话文件，见 [MCP.md](docs/MCP.md)。不要让 stdout 日志污染协议。
 
-今日待办见 [TODO.md](TODO.md)，已知范围与验证结果见 [工作状态](docs/WORK-STATUS.md)。
+## 数据保护
+
+Mac 文件为 `~/Library/Application Support/com.akm.dida-clone/dida.db`；当前状态与队列在 `sync_local_state`，旧关系表用于显式导入。网页使用 IndexedDB。遇到问题先导出并保留原库，退出前同步未上传修改；恢复服务端数据前按 [备份策略](docs/deployment/backup-policy.md) 执行。

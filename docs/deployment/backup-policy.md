@@ -68,3 +68,7 @@ systemctl --user start dida-sync.service dida-sync-backup.timer
 
 迁移前另留一份固定回退快照在 private/migration-时间戳/，它不参与每日 14 份轮换；确认迁移稳定后可决定是否删除。
 若不需要自动备份，可执行 `systemctl --user disable --now dida-sync-backup.timer`；已有备份不会随之删除。
+
+## MCP 和 OpenClaw 配置边界
+
+配对配置包仍只包含脚本列出的 environment、initial-password、initial-credentials.txt，不包含 OpenClaw 全配置或 MCP token。接入时的 OpenClaw 配置/规则快照另存 private/openclaw-dida-时间戳/，受限权限保存。服务器恢复会撤销 MCP 会话，须显式重新配置；不要靠恢复旧 token 绕过撤销。

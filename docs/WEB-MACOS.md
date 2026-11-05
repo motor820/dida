@@ -1,61 +1,39 @@
-# Dida 0.2 网页与 Mac 试用
+# Dida 网页与 Apple Silicon Mac 使用说明
 
-本阶段交付网页版、Apple Silicon Mac 桌面端及自建同步 API；暂未开发安卓客户端。
+更新：2026-11-05；应用版本 0.2.0。网页与 Mac 共用当前界面和业务；安卓尚未交付。
 
-- 网页：https://dida.aiking.net:888/
-- 账号：motordida。网页与 Mac 使用同一密码；初始密码不进入仓库，由部署者单独提供。
-- Mac 首次启动可点击“先离线使用，稍后登录同步”。已经保存的任务、修改及待上传队列都在本机 SQLite 中；网络不可用时仍能编辑。
-- 网页首次进入需要登录，数据使用 IndexedDB；页面已打开时可继续断网编辑，再联网补传。不把浏览器缓存清理当作退出方式，先同步或导出备份。
-- 顶部“账号与同步”可登录、修改共用密码、查看和撤销其他设备、导入导出数据。改密撤销所有旧登录；退出登录会清理这台设备缓存，若有待上传修改应先导出。
-- 同一字段按校准后的修改时间自动取新；未修改的字段不会因旧界面快照回写。永久删除保留终止标记。
-- 旧版本数据不会自动混入服务器。选择“导入这台设备的旧版数据”，或导入 JSON 备份；原始数据保留。旧局域网网页与新域名属于不同浏览器存储来源，需要先在旧来源导出再导入。
+## 账号与同步
 
-## Mac 安装
+- 网页：<https://dida.aiking.net:888/>。当前用户名 `motordida`，使用自己修改后的 Dida 密码，仓库不记录有效密码。
+- **左下角刷新图标**立即同步；其下的**设置齿轮**打开账号、改密、设备、导入导出和退出功能。顶部状态行已移除，刷新按钮提示及设置面板显示同步状态。
+- Mac 初次可以选择先离线使用，任务和待上传操作保存于 SQLite。网页初次需登录，已打开页面可断网编辑并在重连后上传，不承诺首次离线打开网页。
+- 修改密码撤销全部旧会话（包括 Rona MCP）；退出登录清理当前设备缓存，所以先同步或导出未上传变更。
+- 同一字段按校准修改时间合并；重复实例初始化不覆盖真实编辑，永久删除不被旧编辑复活。
 
-GitHub Actions 的 macOS Apple Silicon trial 工作流生成 DMG 和 APP ZIP，保留 14 天。构建使用 ad-hoc 签名，没有苹果公证。首次打开被系统拦截时，确认来源后到“系统设置 → 隐私与安全性 → 仍要打开”。不需要全局关闭 Gatekeeper。
-Mac 数据库路径：~/Library/Application Support/com.akm.dida-clone/dida.db。新数据和待同步队列在 sync_local_state 中原子保存；原有关系表保留供显式旧数据导入。
-登录令牌在 macOS Keychain 中，API 主机固定为上面的 HTTPS 域名。当前无端到端加密；服务端持有任务明文数据。
+## Mac 安装与钥匙串
 
-## 开发与验证
+最新包见 [RELEASES.md](RELEASES.md)，GitHub Actions 产物名 `Dida-macOS-Apple-Silicon`，包含 DMG、APP ZIP、COMMIT.txt 和 SHA256SUMS.txt，保留 14 天。解压后打开 DMG，将 **Dida.app** 放入应用程序。此前的 dida-clone.app 为旧命名包，应按提交号区分。
 
-```bash
-npm ci
-npm run test:sync
-npm run build
-cargo test --manifest-path crates/local-store/Cargo.toml
-cargo test --manifest-path server/Cargo.toml
-```
+当前 ad-hoc 签名、未 Apple 公证；来源确认后可在“系统设置 → 隐私与安全”中选择“仍要打开”，不需要全局关闭 Gatekeeper。
 
-在 Mac 上执行 npm run tauri build -- --target aarch64-apple-darwin --bundles app,dmg；个人试用可设置 APPLE_SIGNING_IDENTITY=-。
-安全审计结果与范围见 SECURITY-REVIEW.md。
+系统提示访问 `net.aiking.dida.sync` 时，是授权读取 Keychain 中的同步令牌，需要 **Mac 登录/钥匙串密码**；在 Dida 登录表单才填写 Dida 密码。对本次安装的 Dida 可选择“始终允许”。改包或签名变化可能重新提示。
 
-## 本机服务运维
+应用标识仍为 `com.akm.dida-clone`，数据库仍为 `~/Library/Application Support/com.akm.dida-clone/dida.db`，当前状态和 outbox 在 sync_local_state；旧关系表保留供显式导入。不要用删除数据库排查问题。原生 API 固定 HTTPS 主机，令牌保存在 Keychain；服务器持有任务明文，没有端到端加密。
 
-本次部署不新增 Docker 容器，使用用户级 systemd 服务；已有 OpenResty 负责 HTTPS 反代。
+## 当前界面与任务行为
 
-- 服务：systemctl --user status dida-sync.service
-- 日志：journalctl --user -u dida-sync.service --since today
-- 启动/停止：systemctl --user start/stop dida-sync.service
-- 运行目录：~/dida/runtime/
-- 配置：~/dida/private/environment
-- 数据：~/dida/data/dida.sqlite3
-- 备份：~/dida/backups/；每天 03:30 后执行，保留最近 14 份。
-- 手动备份：systemctl --user start dida-sync-backup.service
-- 已启用用户 linger，无需登录桌面也会开机运行。
-- 后端只监听 127.0.0.1:1430；公网 888 经路由器映射至本机 443。DNS 使用仅 DNS，证书由 1Panel 管理并自动续签。
+第二栏标题 16px 粗体，未完成无日期任务在前，其后按截止时间排序。第三栏子任务标题和描述为 14px，展示、编辑和检查事项文本模式一致。标题支持多行及 Enter 续建；第三栏主标题 Enter 转入描述编辑。窄屏保留 60px 导航图标栏并以抽屉展示详情。
 
-恢复之前，先手动备份当前状态，然后停止 dida-sync.service。加载 environment 中的环境变量后，执行 dida-sync-server restore /绝对路径/备份.sqlite3，再启动服务。恢复会更换同步代次并撤销旧会话；各设备重新登录后取服务器快照，未上传修改仍按同步规则处理。此操作会用备份覆盖当前服务器数据。
+重复规则支持日、周、月、季度、年、周一至周五和自定义公历规则。**完成当前任务才生成下一期及检查项**，不是独立后台定时调度；保留月末/闰年与当地时刻，逾期计划跳过历史，离线/多设备使用确定 ID 去重。旧自定义规则缺少频率时需重新选择。提醒仍是打开应用时的本地提示，不承诺退出后的系统通知。
 
-服务端以 SQLite backup API 生成一致快照，不直接复制仍在写入的数据库文件。备份配置包含私密初始凭据，目录和文件受权限保护；生产数据、令牌和密码不得提交 Git。
+搜索、日历、深色模式和虚拟滚动仍见 [TODO](../TODO.md)，不能仅凭导航按钮认定已完成。
 
-当前重复任务沿用原项目能力：保存与同步规则，自动生成下一次任务的完整调度尚未作为本阶段交付承诺。提醒仍为打开应用时的本地提示，不承诺退出应用后的系统通知；安卓原生提醒在后续阶段开发。
+## 数据迁移
 
-CI 在可用的标准 Intel Mac 运行器上交叉编译 aarch64 安装包，并另外编译同源码的 Intel 版本进行启动检查；只上传 Apple Silicon 产物。用户已于 2026-11-04 确认 M1 版本测试通过；具体场景未逐项提供，不据此声称所有平台和后台行为均已验收。
+旧数据不会自动混入服务端。在设置中选择“导入这台设备的旧版数据”，或导入 JSON 备份；原始旧数据保留。旧局域网网页与新域名不同源，须在原浏览器先打开旧导出页 <http://192.168.1.3:1420/dida-export.html> 导出，再到新应用导入。
 
-## 开发进度与交接
+## 开发与运维
 
-当前待办以 [TODO.md](../TODO.md) 为准，交接以 [WORK-STATUS.md](WORK-STATUS.md) 为准。受版本管理的部署资料见 [deployment/index.md](deployment/index.md)。
+命令与环境见 [QUICKSTART](../QUICKSTART.md)，当前实现见 [ARCHITECTURE](../ARCHITECTURE.md)。构建会将相同前端源码嵌入 Mac；原生编译、签名和 Intel 主机启动检查通过后，仍需区分用户在 M1 的实际功能验收。
 
-## 当前 Mac 应用名称
-
-新版应用名称及可执行文件名为 Dida，安装包内为 Dida.app，当前 Actions 产物名为 Dida-macOS-Apple-Silicon。旧包中的 dida-clone.app 属于此前构建。应用标识 com.akm.dida-clone、SQLite 目录和 Keychain 条目保持兼容。第三栏子任务标题及描述统一使用 14px，编辑与展示一致。
+正式 API 为用户级 dida-sync.service，路径在 workspace runtime/data/private/backups 下。每日保留最近 14 份完整配对备份。恢复会覆盖服务器数据、更换 epoch 并撤销会话，须按 [备份恢复流程](deployment/backup-policy.md) 操作。恢复后 Rona MCP 需重新配置专用会话，见 [MCP](MCP.md)。
