@@ -10,11 +10,11 @@ MCP 的 12 个工具已接入本机 OpenClaw；Rona dida-tasks skill 可见，�
 
 ## Git 与发布约定
 
-维护远端为 motor820/dida，upstream 为原始 jameingh/dida-clone。main 与 feature/web-macos-sync 在本次交付后指向同一最新提交。旧局域网 checkout app/ 使用 legacy/lan-web 保存历史代码和原有维护改动，实际源文件不因分支整理被替换；补丁位于 ops/legacy-export/。
+维护远端为 motor820/dida，upstream 为原始 jameingh/dida-clone。main 与 feature/web-macos-sync 在本次交付后指向同一最新提交。旧局域网 checkout app/ 使用 legacy/lan-web 保存历史代码和原有维护改动，实际源文件不因分支整理被替换；补丁位于 ops/legacy-export/，旧版维护与文档范围已独立保存为 legacy/lan-web 的 7716f03。
 
 当前用户决定 GitHub 继续公开，私有化稍后自行处理。仓库是公开 fork，变私有需要先按 GitHub 规则脱离 fork 网络。不可将“用户计划私有化”写成“已经私有”。
 
-本次文档核对完成后推送 main、开发分支与基线标签，并构建包含左下角入口的最新 M1 包。已成功交付的安装包与准确构建提交见 [RELEASES](RELEASES.md)；待完成构建不作为已成功交付。
+本次文档与源码已推送 main、开发分支及基线标签；M1 构建 41938054981 完成 success，安装包源码为 de4b96f，包含左下角入口。旧版归档也已推送。已成功交付的安装包与准确构建提交见 [RELEASES](RELEASES.md)；待完成构建不作为已成功交付。
 
 ## 运行环境
 
