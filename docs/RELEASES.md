@@ -1,6 +1,6 @@
 # Mac 构建与交付记录
 
-当前源码版本为 0.2.1，更新为用户提供的蓝色圆环、黄色勾选图标，网页 favicon 与 Mac 图标统一。0.2.1 安装包构建中；下表仍仅列已成功交付的包。不同构建用 **COMMIT.txt 的源码提交号**区分。只把成功结束并有未过期产物的 run 当作可交付版本。
+当前源码版本为 0.2.1，更新为用户提供的蓝色圆环、黄色勾选图标，网页 favicon 与 Mac 图标统一。0.2.1 安装包已构建并验证成功。不同构建用 **COMMIT.txt 的源码提交号**区分。只把成功结束并有未过期产物的 run 当作可交付版本。
 
 ## 下载
 
@@ -8,14 +8,19 @@
 
 | 已验证构建 | 源码 | 内容 |
 |---|---|---|
-| [41938054981 最新包](https://github.com/motor820/dida/actions/runs/41938054981/artifacts/13375317372) | de4b96f | 包含左下角刷新/设置、删除顶部行、14px 详情、重复任务及最新共享前端；构建全部成功 |
+| [41943786755 最新包](https://github.com/motor820/dida/actions/runs/41943786755/artifacts/13377578096) | 3f90534 | 0.2.1：用户提供的新应用图标、网站 favicon 与 Apple touch icon；ARM64 打包、签名和启动检查全部通过 |
+| [41938054981](https://github.com/motor820/dida/actions/runs/41938054981/artifacts/13375317372) | de4b96f | 包含左下角刷新/设置、删除顶部行、14px 详情、重复任务及最新共享前端；构建全部成功 |
 | [41932102591](https://github.com/motor820/dida/actions/runs/41932102591) | f77f558 | Dida.app / Dida 可执行文件、14px 子任务和描述；不包含之后的左下角入口及 MCP 提交 |
 | [41926391218](https://github.com/motor820/dida/actions/runs/41926391218) | 66470f1 | 共享浏览器改版、日期排序、季度重复；应用仍是旧命名 |
 | [41673984772](https://github.com/motor820/dida/actions/runs/41673984772) | 96dccb1 | 初始网页/Mac 离线同步；用户于 2026-11-04 确认该阶段 M1 测试通过 |
 
-最新包 artifact ID 为 13375317372，大小 11,226,313 bytes，保留至 **北京时间 2026-11-19 08:10**。SHA256（完整 artifact ZIP）：`d926a1679368131e92bc4e1efacb05af5186d3c80b372506ec0ce98f8f50fd41`。
+最新包 artifact ID 为 13377578096，大小 11,335,087 bytes，保留至 **北京时间 2026-11-19 08:52**。SHA256（完整 artifact ZIP）：`788b72dfdca34b6b3a3978d825c890675425887125626b466eec4de72830cf9f`。
 
-该包构建源码为 de4b96f；随后仅补录交付说明和旧版归档资料，编译涉及的源码、依赖和配置与此提交一致。main 与开发分支同步到最终交付登记提交；精确安装包来源仍看 COMMIT.txt/BUILD-INFO.json。
+该包构建源码为 3f90534，包含 0.2.1 新图标和此前已交付的功能。Mac 的 icon.icns 逐字节保留用户提供文件，SHA256 为 `5cdc1fcaebba1c1fa901a1e0bc21edc1758324c4365e2c2c4c075f20f714310c`。网页于 2026-11-05 上线，公网图标哈希、Chrome 页面和三个图标链接验证通过。本次复核原生入口、SQLite 持久化、Keychain/HTTP、CSP 和 bundle 配置，未发现本次修改带来的问题；没有重新声称完成全量安全审计。37 项 Node、3 项 SQLite、7 项服务端测试通过，CI 依赖审计、签名、Intel 同源码启动及 SQLite 完整性检查通过。
+
+下载后已核对 artifact ZIP、DMG 和应用 ZIP 的 SHA256、包内版本/标识、源码提交以及 ICNS 原文件一致性。
+
+本次发布提交位于 feature/web-macos-sync；main 仍为此前文档基线。精确安装包来源看 COMMIT.txt/BUILD-INFO.json。
 
 ## 构建来源与验证
 
